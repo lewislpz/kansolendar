@@ -231,12 +231,26 @@ internal actor SQLiteVaultDatabase {
         _ = try unlockedGeneration()
         guard let metadata = try metadata() else { throw VaultStorageError.vaultNotCreated }
         let key = try await keyStore.load(vaultID: metadata.vaultID, keyID: metadata.activeKeyID)
-        try connection.snapshot(to: path)
+        let stagingDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Kansolendar-Backup-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: stagingDirectory,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer { try? FileManager.default.removeItem(at: stagingDirectory) }
+        let stagingURL = stagingDirectory.appendingPathComponent("verified.sqlite")
+        try connection.snapshot(to: stagingURL.path)
+        try await Self.validateBackup(
+            at: stagingURL.path,
+            key: key,
+            expectedVaultID: metadata.vaultID,
+            expectedKeyID: metadata.activeKeyID
+        )
         do {
-            try await Self.validateBackup(at: path, key: key, expectedVaultID: metadata.vaultID, expectedKeyID: metadata.activeKeyID)
-        } catch {
-            try? FileManager.default.removeItem(atPath: path)
-            throw error
+            try PrivateFileCopier.copyNewFile(from: stagingURL.path, to: path)
+        } catch PrivateFileError.destinationExists {
+            throw SQLiteVaultError.snapshotDestinationExists
         }
     }
 

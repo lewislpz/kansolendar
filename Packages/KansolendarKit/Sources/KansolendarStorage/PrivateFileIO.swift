@@ -64,3 +64,45 @@ internal enum PrivateFileWriter {
         completed = true
     }
 }
+
+internal enum PrivateFileCopier {
+    static func copyNewFile(from sourcePath: String, to destinationPath: String) throws {
+        let source = sourcePath.withCString { open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) }
+        guard source >= 0 else { throw PrivateFileError.filesystemFailure(errno) }
+        defer { close(source) }
+
+        let destination = destinationPath.withCString {
+            open($0, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(S_IRUSR | S_IWUSR))
+        }
+        guard destination >= 0 else {
+            if errno == EEXIST { throw PrivateFileError.destinationExists }
+            throw PrivateFileError.filesystemFailure(errno)
+        }
+        var completed = false
+        defer {
+            close(destination)
+            if !completed { unlink(destinationPath) }
+        }
+
+        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+        while true {
+            let readCount = buffer.withUnsafeMutableBytes { bytes in
+                Darwin.read(source, bytes.baseAddress, bytes.count)
+            }
+            if readCount < 0, errno == EINTR { continue }
+            guard readCount >= 0 else { throw PrivateFileError.filesystemFailure(errno) }
+            if readCount == 0 { break }
+            var offset = 0
+            while offset < readCount {
+                let writeCount = buffer.withUnsafeBytes { bytes in
+                    Darwin.write(destination, bytes.baseAddress?.advanced(by: offset), readCount - offset)
+                }
+                if writeCount < 0, errno == EINTR { continue }
+                guard writeCount > 0 else { throw PrivateFileError.filesystemFailure(errno) }
+                offset += writeCount
+            }
+        }
+        guard fsync(destination) == 0 else { throw PrivateFileError.filesystemFailure(errno) }
+        completed = true
+    }
+}
