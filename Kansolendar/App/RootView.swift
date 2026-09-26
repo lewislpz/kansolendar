@@ -6,6 +6,17 @@ struct RootView: View {
     @State private var model = VaultViewModel()
 
     var body: some View {
+        Group {
+            if model.vaultState == .unlocked {
+                CalendarWorkspaceView(model: model)
+            } else {
+                vaultGate
+            }
+        }
+        .task { await model.refresh() }
+    }
+
+    private var vaultGate: some View {
         VStack(spacing: 18) {
             Image(systemName: "calendar.badge.lock")
                 .font(.system(size: 38, weight: .light))
@@ -36,7 +47,6 @@ struct RootView: View {
         }
         .frame(minWidth: 520, minHeight: 360)
         .padding(32)
-        .task { await model.refresh() }
     }
 
     @ViewBuilder
@@ -100,10 +110,13 @@ struct RootView: View {
 
 @MainActor
 @Observable
-private final class VaultViewModel {
+final class VaultViewModel {
     private let vault: KansolendarVault?
     private(set) var vaultState: VaultState?
     private(set) var isBusy = false
+    private(set) var calendars: [LocalCalendar] = []
+    private(set) var events: [VaultEvent] = []
+    private(set) var isLoadingContent = false
     var message: String?
 
     init() {
@@ -135,6 +148,7 @@ private final class VaultViewModel {
             do {
                 _ = try await vault.createVault()
                 vaultState = try await vault.state()
+                await loadContent()
             } catch let error as VaultError {
                 message = Self.message(for: error)
                 await refresh()
@@ -155,6 +169,7 @@ private final class VaultViewModel {
             do {
                 try await vault.unlock()
                 vaultState = try await vault.state()
+                await loadContent()
             } catch let error as VaultError {
                 message = Self.message(for: error)
                 await refresh()
@@ -167,13 +182,189 @@ private final class VaultViewModel {
 
     func lock() {
         guard let vault else { return }
+        clearPrivateContent()
+        vaultState = .locked
         Task {
             await vault.lock()
-            await refresh()
         }
     }
 
-    private static func message(for error: VaultError) -> String {
+    func loadContent() async {
+        guard let vault, vaultState == .unlocked else {
+            clearPrivateContent()
+            return
+        }
+        isLoadingContent = true
+        defer { isLoadingContent = false }
+        do {
+            async let storedCalendars = vault.calendars()
+            async let storedEvents = vault.events()
+            calendars = try await storedCalendars.sorted { ($0.sortOrder, $0.name) < ($1.sortOrder, $1.name) }
+            events = try await storedEvents.sorted { Self.startDate(for: $0.event) < Self.startDate(for: $1.event) }
+            message = nil
+        } catch let error as VaultError {
+            handleContentError(error)
+        } catch {
+            message = "No se pudo cargar el calendario local."
+        }
+    }
+
+    func createCalendar(name: String, color: CalendarColor) async -> Bool {
+        guard let vault else { return false }
+        do {
+            let identifier = TimeZone.autoupdatingCurrent.identifier
+            let timeZone = try TimeZoneID(TimeZone.knownTimeZoneIdentifiers.contains(identifier) ? identifier : "UTC")
+            let calendar = try LocalCalendar(
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                color: color,
+                sortOrder: calendars.count,
+                defaultTimeZone: timeZone
+            )
+            try await vault.save(calendar)
+            await loadContent()
+            return true
+        } catch let error as VaultError {
+            handleContentError(error)
+        } catch {
+            message = "El nombre del calendario no es válido."
+        }
+        return false
+    }
+
+    func saveEvent(
+        existing: Event?,
+        calendarID: UUID,
+        title: String,
+        notes: String?,
+        location: String?,
+        start: Date,
+        end: Date,
+        isAllDay: Bool
+    ) async -> Bool {
+        guard let vault else { return false }
+        do {
+            let eventTime = try Self.eventTime(start: start, end: end, isAllDay: isAllDay)
+            let normalizedNotes = Self.optionalText(notes)
+            let normalizedLocation = Self.optionalText(location)
+            let event: Event
+            if var existing {
+                try existing.update(
+                    title: title,
+                    notes: normalizedNotes,
+                    location: normalizedLocation,
+                    time: eventTime
+                )
+                event = existing
+            } else {
+                event = try Event(
+                    calendarID: calendarID,
+                    title: title,
+                    notes: normalizedNotes,
+                    location: normalizedLocation,
+                    time: eventTime
+                )
+            }
+            try await vault.save(event)
+            await loadContent()
+            return true
+        } catch let error as VaultError {
+            handleContentError(error)
+        } catch {
+            message = "Revisa el título y el intervalo del evento."
+        }
+        return false
+    }
+
+    func deleteEvent(id: UUID) async -> Bool {
+        guard let vault else { return false }
+        do {
+            try await vault.deleteEvent(id: id)
+            await loadContent()
+            return true
+        } catch let error as VaultError {
+            handleContentError(error)
+        } catch {
+            message = "No se pudo eliminar el evento."
+        }
+        return false
+    }
+
+    private func clearPrivateContent() {
+        calendars = []
+        events = []
+    }
+
+    private func handleContentError(_ error: VaultError) {
+        message = Self.message(for: error)
+        if error == .locked || error == .authenticationCancelled || error == .authenticationFailed {
+            clearPrivateContent()
+            vaultState = .locked
+        }
+    }
+
+    static func startDate(for event: Event) -> Date {
+        switch event.time {
+        case let .allDay(value):
+            var components = DateComponents()
+            components.calendar = Calendar(identifier: .gregorian)
+            components.year = value.range.start.year
+            components.month = value.range.start.month
+            components.day = value.range.start.day
+            return components.date ?? .distantPast
+        case let .utc(value):
+            return Date(timeIntervalSince1970: TimeInterval(value.start.unixSeconds))
+        case let .zoned(value):
+            return Date(timeIntervalSince1970: TimeInterval(value.resolvedStart.unixSeconds))
+        }
+    }
+
+    static func endDate(for event: Event) -> Date {
+        switch event.time {
+        case let .allDay(value):
+            var components = DateComponents()
+            components.calendar = Calendar(identifier: .gregorian)
+            components.year = value.range.endExclusive.year
+            components.month = value.range.endExclusive.month
+            components.day = value.range.endExclusive.day
+            return components.date ?? startDate(for: event)
+        case let .utc(value):
+            return Date(timeIntervalSince1970: TimeInterval(value.endExclusive.unixSeconds))
+        case let .zoned(value):
+            return Date(timeIntervalSince1970: TimeInterval(value.endExclusive.unixSeconds))
+        }
+    }
+
+    static func isAllDay(_ event: Event) -> Bool {
+        if case .allDay = event.time { return true }
+        return false
+    }
+
+    private static func eventTime(start: Date, end: Date, isAllDay: Bool) throws -> EventTime {
+        guard end > start else { throw DomainValidationError.invalidRange }
+        if isAllDay {
+            let calendar = Calendar.autoupdatingCurrent
+            let startParts = calendar.dateComponents([.year, .month, .day], from: start)
+            let endParts = calendar.dateComponents([.year, .month, .day], from: end)
+            guard let startYear = startParts.year, let startMonth = startParts.month, let startDay = startParts.day,
+                  let endYear = endParts.year, let endMonth = endParts.month, let endDay = endParts.day else {
+                throw DomainValidationError.invalidCivilDate
+            }
+            return .allDay(try AllDayEventTime(
+                start: CivilDate(year: startYear, month: startMonth, day: startDay),
+                endExclusive: CivilDate(year: endYear, month: endMonth, day: endDay)
+            ))
+        }
+        let startSeconds = Int64(start.timeIntervalSince1970.rounded(.towardZero))
+        let duration = Int64(end.timeIntervalSince(start).rounded(.towardZero))
+        return .utc(try TimedEventTime(start: Instant(unixSeconds: startSeconds), durationSeconds: duration))
+    }
+
+    private static func optionalText(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    static func message(for error: VaultError) -> String {
         switch error {
         case .authenticationCancelled:
             "Autenticación cancelada. El calendario sigue bloqueado."
