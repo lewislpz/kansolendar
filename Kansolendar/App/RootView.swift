@@ -290,6 +290,45 @@ final class VaultViewModel {
         return false
     }
 
+    func moveEvent(id: UUID, to date: CivilDate) async -> Bool {
+        guard let vault, let stored = events.first(where: { $0.event.id == id }) else { return false }
+        guard stored.recurrence == nil else {
+            message = "Las series recurrentes se mueven desde su editor para evitar cambios ambiguos."
+            return false
+        }
+        do {
+            var event = stored.event
+            try event.update(
+                title: event.title,
+                notes: event.notes,
+                location: event.location,
+                time: event.time.moved(to: date)
+            )
+            try await vault.save(event)
+            await loadContent()
+            return true
+        } catch let error as VaultError {
+            handleContentError(error)
+        } catch {
+            message = "No se pudo mover el evento a ese día. Revisa el cambio horario."
+        }
+        return false
+    }
+
+    func deleteCalendar(id: UUID) async -> Bool {
+        guard let vault else { return false }
+        do {
+            try await vault.deleteCalendar(id: id)
+            await loadContent()
+            return true
+        } catch let error as VaultError {
+            handleContentError(error)
+        } catch {
+            message = "No se pudo eliminar el calendario."
+        }
+        return false
+    }
+
     func createBackup(at url: URL) async {
         guard let vault else { return }
         isExporting = true
@@ -391,9 +430,33 @@ final class VaultViewModel {
                 endExclusive: CivilDate(year: endYear, month: endMonth, day: endDay)
             ))
         }
-        let startSeconds = Int64(start.timeIntervalSince1970.rounded(.towardZero))
+        let foundationZone = TimeZone.autoupdatingCurrent
+        let zoneID = try TimeZoneID(
+            TimeZone.knownTimeZoneIdentifiers.contains(foundationZone.identifier)
+                ? foundationZone.identifier
+                : "UTC"
+        )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = foundationZone
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: start)
+        guard let year = parts.year, let month = parts.month, let day = parts.day,
+              let hour = parts.hour, let minute = parts.minute else {
+            throw DomainValidationError.invalidCivilDate
+        }
         let duration = Int64(end.timeIntervalSince(start).rounded(.towardZero))
-        return .utc(try TimedEventTime(start: Instant(unixSeconds: startSeconds), durationSeconds: duration))
+        let localStart = try LocalDateTime(
+            date: CivilDate(year: year, month: month, day: day),
+            hour: hour,
+            minute: minute,
+            second: parts.second ?? 0
+        )
+        return .zoned(try ZonedEventTime(
+            localStart: localStart,
+            timeZone: zoneID,
+            repeatedTime: .first,
+            durationSeconds: duration,
+            resolver: FoundationLocalTimeResolver()
+        ))
     }
 
     private static func optionalText(_ text: String?) -> String? {

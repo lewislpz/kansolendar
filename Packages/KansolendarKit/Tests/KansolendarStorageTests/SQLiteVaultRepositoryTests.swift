@@ -203,6 +203,32 @@ struct SQLiteVaultRepositoryTests {
         #expect(try await database.events().count == 2)
     }
 
+    @Test("deleting a calendar atomically removes its encrypted events and exceptions")
+    func calendarDeletionCascadesContents() async throws {
+        let database = try SQLiteVaultDatabase(path: ":memory:", keyStore: FixtureVaultKeyStore())
+        _ = try await database.createVault()
+        let deletedCalendar = try LocalCalendar(name: "Delete me", defaultTimeZone: TimeZoneID("UTC"))
+        let keptCalendar = try LocalCalendar(name: "Keep me", defaultTimeZone: TimeZoneID("UTC"))
+        try await database.saveCalendar(deletedCalendar)
+        try await database.saveCalendar(keptCalendar)
+
+        let deletedEvent = try makeEvent(calendarID: deletedCalendar.id, uid: "deleted", title: "Deleted")
+        let keptEvent = try makeEvent(calendarID: keptCalendar.id, uid: "kept", title: "Kept")
+        let recurrence = try RecurrenceRule(frequency: .daily, end: .count(2))
+        let cancellation = EventOccurrenceKey(
+            eventID: deletedEvent.id,
+            originalStart: .instant(Instant(unixSeconds: 86_400))
+        )
+        try await database.saveEvent(deletedEvent, recurrence: recurrence, cancellations: [cancellation])
+        try await database.saveEvent(keptEvent)
+
+        try await database.removeCalendar(id: deletedCalendar.id)
+
+        #expect(try await database.calendars() == [keptCalendar])
+        #expect(try await database.events() == [VaultEvent(event: keptEvent, recurrence: nil)])
+        try await database.foreignKeyCheck()
+    }
+
     @Test("orphan payload rows cannot be mistaken for a new empty vault")
     func orphanRecordsBlockVaultCreation() async throws {
         let database = try SQLiteVaultDatabase(path: ":memory:", keyStore: FixtureVaultKeyStore())

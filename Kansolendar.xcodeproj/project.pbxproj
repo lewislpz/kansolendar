@@ -13,6 +13,7 @@
 		0D0000000000000000000104 /* KansolendarStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000703 /* KansolendarStorage */; };
 		0D0000000000000000000105 /* CalendarWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000205 /* CalendarWorkspaceView.swift */; };
 		0D0000000000000000000106 /* ExportPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000206 /* ExportPanel.swift */; };
+		0D0000000000000000000107 /* MonthCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000207 /* MonthCalendarView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +23,7 @@
 		0D0000000000000000000204 /* Kansolendar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kansolendar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D0000000000000000000205 /* CalendarWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWorkspaceView.swift; sourceTree = "<group>"; };
 		0D0000000000000000000206 /* ExportPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPanel.swift; sourceTree = "<group>"; };
+		0D0000000000000000000207 /* MonthCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthCalendarView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +63,7 @@
 				0D0000000000000000000201 /* KansolendarApp.swift */,
 				0D0000000000000000000205 /* CalendarWorkspaceView.swift */,
 				0D0000000000000000000206 /* ExportPanel.swift */,
+				0D0000000000000000000207 /* MonthCalendarView.swift */,
 				0D0000000000000000000202 /* RootView.swift */,
 			);
 			path = App;
@@ -159,6 +162,7 @@
 			files = (
 				0D0000000000000000000105 /* CalendarWorkspaceView.swift in Sources */,
 				0D0000000000000000000106 /* ExportPanel.swift in Sources */,
+				0D0000000000000000000107 /* MonthCalendarView.swift in Sources */,
 				0D0000000000000000000101 /* KansolendarApp.swift in Sources */,
 				0D0000000000000000000102 /* RootView.swift in Sources */,
 			);

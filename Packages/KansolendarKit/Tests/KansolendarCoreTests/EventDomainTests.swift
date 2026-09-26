@@ -4,6 +4,48 @@ import Testing
 
 @Suite("Event domain values")
 struct EventDomainTests {
+    @Test("moving events preserves duration and clock semantics")
+    func movingEvents() throws {
+        let target = try CivilDate(year: 2026, month: 10, day: 4)
+
+        let allDay = EventTime.allDay(try AllDayEventTime(
+            start: CivilDate(year: 2026, month: 9, day: 1),
+            endExclusive: CivilDate(year: 2026, month: 9, day: 4)
+        ))
+        guard case let .allDay(movedAllDay) = try allDay.moved(to: target) else {
+            Issue.record("Expected all-day time")
+            return
+        }
+        #expect(movedAllDay.range.start == target)
+        #expect(movedAllDay.durationInDays == 3)
+
+        let utc = EventTime.utc(try TimedEventTime(
+            start: Instant(unixSeconds: 9 * 3_600 + 30 * 60),
+            durationSeconds: 5_400
+        ))
+        guard case let .utc(movedUTC) = try utc.moved(to: target) else {
+            Issue.record("Expected UTC time")
+            return
+        }
+        #expect(movedUTC.start.unixSeconds == target.daysSinceUnixEpoch * 86_400 + 9 * 3_600 + 30 * 60)
+        #expect(movedUTC.durationSeconds == 5_400)
+
+        let zone = try TimeZoneID("Europe/Madrid")
+        let zoned = EventTime.zoned(try ZonedEventTime(
+            localStart: LocalDateTime(date: CivilDate(year: 2026, month: 9, day: 1), hour: 14, minute: 15),
+            timeZone: zone,
+            repeatedTime: .first,
+            durationSeconds: 3_600,
+            resolver: FoundationLocalTimeResolver()
+        ))
+        guard case let .zoned(movedZoned) = try zoned.moved(to: target) else {
+            Issue.record("Expected zoned time")
+            return
+        }
+        let expectedLocalStart = try LocalDateTime(date: target, hour: 14, minute: 15)
+        #expect(movedZoned.localStart == expectedLocalStart)
+        #expect(movedZoned.durationSeconds == 3_600)
+    }
     @Test("all-day events use exclusive civil end dates")
     func allDayDuration() throws {
         let start = try CivilDate(year: 2026, month: 3, day: 28)

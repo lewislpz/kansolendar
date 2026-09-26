@@ -431,7 +431,15 @@ internal actor SQLiteVaultDatabase {
 
     func removeCalendar(id: UUID) throws {
         _ = try unlockedGeneration()
-        try deleteCalendar(id: id)
+        try connection.execute("BEGIN IMMEDIATE")
+        do {
+            try deleteEvents(calendarID: id)
+            try deleteCalendar(id: id)
+            try connection.execute("COMMIT")
+        } catch {
+            try? connection.execute("ROLLBACK")
+            throw error
+        }
     }
 
     func migrate() throws {
@@ -655,6 +663,14 @@ internal actor SQLiteVaultDatabase {
 
     func deleteCalendar(id: UUID) throws {
         try deleteRecord(sql: "DELETE FROM calendars WHERE id = ?1", id: id)
+    }
+
+    private func deleteEvents(calendarID: UUID) throws {
+        let statement = try connection.prepare("DELETE FROM events WHERE calendar_id = ?1")
+        defer { sqlite3_finalize(statement) }
+        try bind(calendarID, to: statement, at: 1)
+        let status = sqlite3_step(statement)
+        guard status == SQLITE_DONE else { throw connection.failure(status) }
     }
 
     private func unlockedGeneration() throws -> UUID {

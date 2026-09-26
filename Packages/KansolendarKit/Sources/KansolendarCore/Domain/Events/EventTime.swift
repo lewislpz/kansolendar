@@ -72,6 +72,46 @@ public enum EventTime: Hashable, Sendable {
         case let .zoned(value): value.durationSeconds
         }
     }
+
+    /// Moves an event to another civil day while preserving its duration and clock semantics.
+    /// UTC values retain their UTC time of day; zoned values retain their wall-clock time and zone.
+    public func moved(
+        to date: CivilDate,
+        resolver: some LocalTimeResolving = FoundationLocalTimeResolver()
+    ) throws -> Self {
+        switch self {
+        case let .allDay(value):
+            guard let duration = Int(exactly: value.durationInDays) else {
+                throw DomainValidationError.arithmeticOverflow
+            }
+            return .allDay(try AllDayEventTime(start: date, endExclusive: date.adding(days: duration)))
+        case let .utc(value):
+            var secondsInDay = value.start.unixSeconds % 86_400
+            if secondsInDay < 0 { secondsInDay += 86_400 }
+            let daySeconds = date.daysSinceUnixEpoch.multipliedReportingOverflow(by: 86_400)
+            guard !daySeconds.overflow else { throw DomainValidationError.arithmeticOverflow }
+            let start = daySeconds.partialValue.addingReportingOverflow(secondsInDay)
+            guard !start.overflow else { throw DomainValidationError.arithmeticOverflow }
+            return .utc(try TimedEventTime(
+                start: Instant(unixSeconds: start.partialValue),
+                durationSeconds: value.durationSeconds
+            ))
+        case let .zoned(value):
+            let localStart = try LocalDateTime(
+                date: date,
+                hour: value.localStart.hour,
+                minute: value.localStart.minute,
+                second: value.localStart.second
+            )
+            return .zoned(try ZonedEventTime(
+                localStart: localStart,
+                timeZone: value.timeZone,
+                repeatedTime: value.repeatedTime,
+                durationSeconds: value.durationSeconds,
+                resolver: resolver
+            ))
+        }
+    }
 }
 
 public enum EventTimeRange: Hashable, Sendable {
