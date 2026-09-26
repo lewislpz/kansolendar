@@ -272,6 +272,11 @@ private struct EventChip: View {
             Capsule()
                 .fill(calendar?.color.swiftUIColor ?? appAccentColor)
                 .frame(width: 3)
+            Text(placement.timeDescription.uppercased())
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(calendar?.color.swiftUIColor ?? appAccentColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Text(placement.master.title)
                 .font(.caption2.weight(.medium))
                 .lineLimit(1)
@@ -281,6 +286,7 @@ private struct EventChip: View {
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background((calendar?.color.swiftUIColor ?? appAccentColor).opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+        .accessibilityElement(children: .combine)
     }
 }
 
