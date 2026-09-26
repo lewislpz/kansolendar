@@ -30,7 +30,7 @@ struct MonthCalendarView: View {
             monthHeader
             if !canCreateEvent {
                 Label {
-                    Text("Crea un calendario en la barra lateral para empezar a añadir eventos.")
+                    Text("Create a calendar in the sidebar to start adding events.")
                         .foregroundStyle(.secondary)
                 } icon: {
                     Image(systemName: "info.circle")
@@ -66,25 +66,14 @@ struct MonthCalendarView: View {
                 Text(monthName.uppercased())
                     .font(.system(.title, design: .monospaced, weight: .semibold))
                     .tracking(1.4)
-                Text("\(events.count) registros descifrados en esta sesión")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            Label("BÓVEDA LOCAL", systemImage: "lock.fill")
-                .font(.caption2.monospaced().weight(.semibold))
-                .foregroundStyle(appAccentColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(appAccentColor.opacity(0.09), in: Capsule())
-                .accessibilityLabel("Bóveda local desbloqueada")
-
-            Button("Mes anterior", systemImage: "chevron.left") { moveMonth(by: -1) }
+            Button("Previous month", systemImage: "chevron.left") { moveMonth(by: -1) }
                 .labelStyle(.iconOnly)
-            Button("Hoy") { selectToday() }
-            Button("Mes siguiente", systemImage: "chevron.right") { moveMonth(by: 1) }
+            Button("Today") { selectToday() }
+            Button("Next month", systemImage: "chevron.right") { moveMonth(by: 1) }
                 .labelStyle(.iconOnly)
         }
         .buttonStyle(.borderless)
@@ -137,7 +126,7 @@ struct MonthCalendarView: View {
                     )
                 }
                 if dayEvents.count > 3 {
-                    Text("+\(dayEvents.count - 3) más")
+                    Text("+\(dayEvents.count - 3) more")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -166,7 +155,7 @@ struct MonthCalendarView: View {
             return true
         }
         .contextMenu {
-            Button("Nuevo evento el \(shortDate(day.date))") { onCreateEvent(day.date) }
+            Button("New event on \(shortDate(day.date))") { onCreateEvent(day.date) }
                 .disabled(!canCreateEvent)
         }
     }
@@ -183,7 +172,7 @@ struct MonthCalendarView: View {
                         .font(.title3.weight(.semibold))
                 }
                 Spacer()
-                Button("Nuevo evento", systemImage: "plus") { onCreateEvent(selectedDate) }
+                Button("New Event", systemImage: "plus") { onCreateEvent(selectedDate) }
                     .buttonStyle(.borderedProminent)
                     .tint(appAccentColor)
                     .disabled(!canCreateEvent)
@@ -193,7 +182,7 @@ struct MonthCalendarView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "waveform.path.ecg")
                         .foregroundStyle(appAccentColor)
-                    Text("Sin actividad programada para este día.")
+                    Text("No activity scheduled for this day.")
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -218,7 +207,7 @@ struct MonthCalendarView: View {
         components.year = displayedMonth.year
         components.month = displayedMonth.month
         components.day = 1
-        return components.date?.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "es_ES")))
+        return components.date?.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "en_US")))
             ?? "\(displayedMonth.month)/\(displayedMonth.year)"
     }
 
@@ -234,19 +223,21 @@ struct MonthCalendarView: View {
     }
 
     private func shortDate(_ date: CivilDate) -> String {
-        Self.foundationDate(date).formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "es_ES")))
+        Self.foundationDate(date).formatted(.dateTime.month(.abbreviated).day().locale(Locale(identifier: "en_US")))
     }
 
     private func longDate(_ date: CivilDate) -> String {
-        Self.foundationDate(date).formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "es_ES")))
+        Self.foundationDate(date).formatted(.dateTime.weekday(.wide).month(.wide).day().locale(Locale(identifier: "en_US")))
     }
 
     private func dayAccessibilityLabel(_ date: CivilDate, count: Int) -> String {
-        "\(longDate(date)), \(count) \(count == 1 ? "evento" : "eventos")"
+        "\(longDate(date)), \(count) \(count == 1 ? "event" : "events")"
     }
 
     private static var weekdaySymbols: [String] {
-        let symbols = Calendar(identifier: .gregorian).shortStandaloneWeekdaySymbols
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US")
+        let symbols = calendar.shortStandaloneWeekdaySymbols
         return Array(symbols[1...]) + [symbols[0]]
     }
 
@@ -317,9 +308,9 @@ private struct AgendaRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Button("Editar", systemImage: "pencil", action: onEdit)
+            Button("Edit", systemImage: "pencil", action: onEdit)
                 .labelStyle(.iconOnly)
-            Button("Eliminar", systemImage: "trash", role: .destructive, action: onDelete)
+            Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
                 .labelStyle(.iconOnly)
         }
         .padding(12)
@@ -328,7 +319,7 @@ private struct AgendaRow: View {
     }
 }
 
-private struct CalendarEventPlacement: Identifiable {
+struct CalendarEventPlacement: Identifiable {
     let master: Event
     let occurrenceTime: EventTime
     let day: CivilDate
@@ -339,7 +330,7 @@ private struct CalendarEventPlacement: Identifiable {
     var timeDescription: String {
         switch occurrenceTime {
         case .allDay:
-            "Todo el día"
+            "All day"
         case let .utc(value):
             Date(timeIntervalSince1970: TimeInterval(value.start.unixSeconds)).formatted(date: .omitted, time: .shortened)
         case let .zoned(value):

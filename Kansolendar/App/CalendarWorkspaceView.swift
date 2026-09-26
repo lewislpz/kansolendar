@@ -18,6 +18,7 @@ struct CalendarWorkspaceView: View {
     @State private var isConfirmingRecoveryExport = false
     @State private var selectedDate = CivilDate.localToday
     @State private var displayedMonth = CalendarMonth(containing: CivilDate.localToday)
+    @State private var viewMode: CalendarViewMode = .month
 
     private var visibleEvents: [VaultEvent] {
         let calendarEvents = selectedCalendarID.map { calendarID in
@@ -31,7 +32,7 @@ struct CalendarWorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedCalendarID) {
-                Section("Calendarios") {
+                Section {
                     ForEach(model.calendars) { calendar in
                         Label {
                             Text(calendar.name)
@@ -42,32 +43,36 @@ struct CalendarWorkspaceView: View {
                         }
                         .tag(calendar.id as UUID?)
                         .contextMenu {
-                            Button("Eliminar calendario", role: .destructive) {
+                            Button("Delete Calendar", role: .destructive) {
                                 calendarPendingDeletion = calendar
                             }
                         }
                     }
+                } header: {
+                    Text("CALENDARS")
+                        .font(.caption2.monospaced().weight(.bold))
+                        .tracking(0.8)
                 }
             }
             .navigationTitle("Kansolendar")
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 14) {
-                    Button("Nuevo calendario", systemImage: "plus") {
+                    Button("New Calendar", systemImage: "plus") {
                         isPresentingCalendarEditor = true
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(appAccentColor)
                     if let selectedCalendarID {
-                        Button("Mostrar todos los eventos", systemImage: "line.3.horizontal.decrease.circle.fill") {
+                        Button("Show All Events", systemImage: "line.3.horizontal.decrease.circle.fill") {
                             self.selectedCalendarID = nil
                         }
                         .labelStyle(.iconOnly)
                         .buttonStyle(.plain)
                         .foregroundStyle(appAccentColor)
-                        .help("Quitar filtro de calendario")
+                        .help("Clear calendar filter")
 
                         if let calendar = model.calendars.first(where: { $0.id == selectedCalendarID }) {
-                            Button("Eliminar calendario", systemImage: "trash", role: .destructive) {
+                            Button("Delete Calendar", systemImage: "trash", role: .destructive) {
                                 calendarPendingDeletion = calendar
                             }
                             .labelStyle(.iconOnly)
@@ -83,48 +88,48 @@ struct CalendarWorkspaceView: View {
             calendarSurface
         }
         .frame(minWidth: 760, minHeight: 500)
-        .searchable(text: $searchText, placement: .toolbar, prompt: "Buscar por título")
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Search by title")
         .toolbar {
             ToolbarItemGroup {
-                Button("Nuevo evento", systemImage: "plus") {
+                Button("New Event", systemImage: "plus") {
                     editorEvent = nil
                     isPresentingEventEditor = true
                 }
                 .disabled(model.calendars.isEmpty)
                 .keyboardShortcut("n", modifiers: .command)
 
-                Button("Bloquear", systemImage: "lock") {
+                Button("Lock", systemImage: "lock") {
                     model.lock()
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
 
-                Menu("Exportar", systemImage: "square.and.arrow.up") {
-                    Button("Backup cifrado…", systemImage: "externaldrive") {
+                Menu("Export", systemImage: "square.and.arrow.up") {
+                    Button("Encrypted Backup…", systemImage: "externaldrive") {
                         guard let url = ExportPanel.chooseBackupDestination() else { return }
                         Task { await model.createBackup(at: url) }
                     }
-                    Button("Kit de recuperación…", systemImage: "key") {
+                    Button("Recovery Kit…", systemImage: "key") {
                         isConfirmingRecoveryExport = true
                     }
                 }
                 .disabled(model.isExporting)
 
-                Menu("Apariencia", systemImage: selectedAppearance.systemImage) {
-                    Picker("Modo", selection: $appearance) {
+                Menu("Appearance", systemImage: selectedAppearance.systemImage) {
+                    Picker("Mode", selection: $appearance) {
                         ForEach(AppAppearance.allCases) { option in
                             Label(option.localizedName, systemImage: option.systemImage)
                                 .tag(option.rawValue)
                         }
                     }
                     Divider()
-                    Picker("Color de acento", selection: $accent) {
+                    Picker("Accent Color", selection: $accent) {
                         ForEach(AppAccent.allCases) { option in
                             Text(option.localizedName)
                                 .tag(option.rawValue)
                         }
                     }
                 }
-                .accessibilityLabel("Cambiar apariencia")
+                .accessibilityLabel("Change appearance")
             }
         }
         .task { await model.loadContent() }
@@ -139,17 +144,17 @@ struct CalendarWorkspaceView: View {
                 preferredDate: selectedDate
             )
         }
-        .alert("¿Eliminar este evento?", isPresented: deletionAlertBinding, presenting: eventPendingDeletion) { event in
-            Button("Cancelar", role: .cancel) {}
-            Button("Eliminar", role: .destructive) {
+        .alert("Delete this event?", isPresented: deletionAlertBinding, presenting: eventPendingDeletion) { event in
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
                 Task { _ = await model.deleteEvent(id: event.id) }
             }
         } message: { event in
-            Text("“\(event.title)” se eliminará de esta bóveda.")
+            Text("“\(event.title)” will be removed from this vault.")
         }
-        .alert("¿Eliminar este calendario?", isPresented: calendarDeletionAlertBinding, presenting: calendarPendingDeletion) { calendar in
-            Button("Cancelar", role: .cancel) {}
-            Button("Eliminar calendario", role: .destructive) {
+        .alert("Delete this calendar?", isPresented: calendarDeletionAlertBinding, presenting: calendarPendingDeletion) { calendar in
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Calendar", role: .destructive) {
                 Task {
                     if await model.deleteCalendar(id: calendar.id), selectedCalendarID == calendar.id {
                         selectedCalendarID = nil
@@ -158,68 +163,110 @@ struct CalendarWorkspaceView: View {
             }
         } message: { calendar in
             let count = model.events.filter { $0.event.calendarID == calendar.id }.count
-            Text("“\(calendar.name)” y sus \(count) \(count == 1 ? "evento" : "eventos") se eliminarán de forma permanente.")
+            Text("“\(calendar.name)” and its \(count) \(count == 1 ? "event" : "events") will be permanently deleted.")
         }
         .confirmationDialog(
-            "El kit permite descifrar cualquier copia de esta bóveda",
+            "The kit can decrypt any copy of this vault",
             isPresented: $isConfirmingRecoveryExport,
             titleVisibility: .visible
         ) {
-            Button("Elegir ubicación…") {
+            Button("Choose Location…") {
                 guard let url = ExportPanel.chooseRecoveryKitDestination() else { return }
                 Task { await model.exportRecoveryKit(at: url) }
             }
-            Button("Cancelar", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Guárdalo separado del backup. Cualquier persona con ambos archivos podrá leer el calendario.")
+            Text("Store it separately from the backup. Anyone with both files can read the calendar.")
         }
     }
 
     @ViewBuilder
     private var calendarSurface: some View {
         if model.isLoadingContent {
-            ProgressView("Cargando calendario privado…")
+            ProgressView("Loading private calendar…")
         } else {
-            MonthCalendarView(
-                events: visibleEvents,
-                calendars: model.calendars,
-                displayedMonth: $displayedMonth,
-                selectedDate: $selectedDate,
-                canCreateEvent: !model.calendars.isEmpty,
-                onCreateEvent: { date in
-                    selectedDate = date
-                    editorEvent = nil
-                    isPresentingEventEditor = true
-                },
-                onEditEvent: { event in
-                    editorEvent = event
-                    isPresentingEventEditor = true
-                },
-                onDeleteEvent: { eventPendingDeletion = $0 },
-                onMoveEvent: { eventID, date in
-                    Task {
-                        if await model.moveEvent(id: eventID, to: date) {
-                            selectedDate = date
-                            displayedMonth = CalendarMonth(containing: date)
-                        }
+            VStack(spacing: 0) {
+                CalendarModeBar(mode: $viewMode)
+                Divider()
+                Group {
+                    switch viewMode {
+                    case .day:
+                        DayCalendarView(
+                            events: visibleEvents,
+                            calendars: model.calendars,
+                            selectedDate: $selectedDate,
+                            canCreateEvent: !model.calendars.isEmpty,
+                            onCreateEvent: { presentEventEditor(on: $0) },
+                            onEditEvent: editEvent,
+                            onDeleteEvent: { eventPendingDeletion = $0 }
+                        )
+                    case .week:
+                        WeekCalendarView(
+                            events: visibleEvents,
+                            calendars: model.calendars,
+                            selectedDate: $selectedDate,
+                            canCreateEvent: !model.calendars.isEmpty,
+                            onCreateEvent: { presentEventEditor(on: $0) },
+                            onEditEvent: editEvent
+                        )
+                    case .month:
+                        MonthCalendarView(
+                            events: visibleEvents,
+                            calendars: model.calendars,
+                            displayedMonth: $displayedMonth,
+                            selectedDate: $selectedDate,
+                            canCreateEvent: !model.calendars.isEmpty,
+                            onCreateEvent: { presentEventEditor(on: $0) },
+                            onEditEvent: editEvent,
+                            onDeleteEvent: { eventPendingDeletion = $0 },
+                            onMoveEvent: { eventID, date in
+                                Task {
+                                    if await model.moveEvent(id: eventID, to: date) {
+                                        selectedDate = date
+                                        displayedMonth = CalendarMonth(containing: date)
+                                    }
+                                }
+                            }
+                        )
+                    case .year:
+                        YearCalendarView(
+                            events: visibleEvents,
+                            selectedDate: $selectedDate,
+                            canCreateEvent: !model.calendars.isEmpty,
+                            onCreateEvent: { presentEventEditor(on: $0) }
+                        )
                     }
                 }
-            )
+                .onChange(of: selectedDate) { _, date in
+                    displayedMonth = CalendarMonth(containing: date)
+                }
+            }
             .overlay(alignment: .bottom) {
                 if let message = model.message {
                     Text(message)
-                        .font(.callout)
+                        .font(.callout.monospaced())
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(.regularMaterial, in: Capsule())
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
                         .overlay {
-                            Capsule().stroke(appAccentColor.opacity(0.45), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 4).stroke(appAccentColor.opacity(0.45), lineWidth: 1)
                         }
                         .padding()
                         .accessibilityIdentifier("workspace-message")
                 }
             }
         }
+    }
+
+    private func presentEventEditor(on date: CivilDate) {
+        selectedDate = date
+        editorEvent = nil
+        isPresentingEventEditor = true
+    }
+
+    private func editEvent(_ event: Event) {
+        editorEvent = event
+        isPresentingEventEditor = true
     }
 
     private var deletionAlertBinding: Binding<Bool> {
@@ -251,23 +298,23 @@ private struct CalendarEditorSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             EditorSheetHeader(
-                title: "Nuevo calendario",
-                subtitle: "Organiza tus eventos en un espacio privado y reconocible.",
+                title: "New Calendar",
+                subtitle: "Create a distinct private event channel.",
                 systemImage: "calendar.badge.plus"
             )
 
             Divider()
 
             VStack(spacing: 16) {
-                EditorSection(title: "Identidad", systemImage: "textformat") {
-                    EditorField("Nombre", hint: "Por ejemplo: Personal, Trabajo o Viajes") {
-                        TextField("Nombre del calendario", text: $name)
+                EditorSection(title: "Identity", systemImage: "textformat") {
+                    EditorField("Name", hint: "For example: Personal, Work, or Travel") {
+                        TextField("Calendar name", text: $name)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
 
                 EditorSection(title: "Color", systemImage: "paintpalette") {
-                    Picker("Color del calendario", selection: $color) {
+                    Picker("Calendar color", selection: $color) {
                         ForEach(CalendarColor.allCases, id: \.self) { option in
                             Label {
                                 Text(option.localizedName)
@@ -287,7 +334,7 @@ private struct CalendarEditorSheet: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(calendarPreviewName)
                                 .font(.headline)
-                            Text("Vista previa en la barra lateral")
+                            Text("Sidebar preview")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -304,8 +351,8 @@ private struct CalendarEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancelar", role: .cancel) { dismiss() }
-                Button("Crear") {
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Create") {
                     isSaving = true
                     Task {
                         if await model.createCalendar(name: name, color: color) { dismiss() }
@@ -326,7 +373,7 @@ private struct CalendarEditorSheet: View {
 
     private var calendarPreviewName: String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Nombre del calendario" : trimmed
+        return trimmed.isEmpty ? "Calendar name" : trimmed
     }
 }
 
@@ -366,8 +413,8 @@ private struct EventEditorSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             EditorSheetHeader(
-                title: event == nil ? "Nuevo evento" : "Editar evento",
-                subtitle: event == nil ? "Añade una cita a tu calendario privado." : "Actualiza los detalles de esta cita.",
+                title: event == nil ? "New Event" : "Edit Event",
+                subtitle: event == nil ? "Add an entry to your private timeline." : "Update this timeline entry.",
                 systemImage: event == nil ? "calendar.badge.plus" : "calendar.badge.clock"
             )
 
@@ -375,14 +422,14 @@ private struct EventEditorSheet: View {
 
             ScrollView {
                 VStack(spacing: 16) {
-                    EditorSection(title: "Detalles", systemImage: "text.alignleft") {
-                        EditorField("Título", hint: "Describe el evento de forma breve") {
-                            TextField("Título del evento", text: $title)
+                    EditorSection(title: "Details", systemImage: "text.alignleft") {
+                        EditorField("Title", hint: "Describe the event briefly") {
+                            TextField("Event title", text: $title)
                                 .textFieldStyle(.roundedBorder)
                         }
 
-                        EditorField("Calendario") {
-                            Picker("Calendario", selection: $calendarID) {
+                        EditorField("Calendar") {
+                            Picker("Calendar", selection: $calendarID) {
                                 ForEach(model.calendars) { calendar in
                                     Label {
                                         Text(calendar.name)
@@ -398,25 +445,25 @@ private struct EventEditorSheet: View {
                         }
                     }
 
-                    EditorSection(title: "Horario", systemImage: "clock") {
-                        Toggle("Evento de todo el día", isOn: $isAllDay)
+                    EditorSection(title: "Schedule", systemImage: "clock") {
+                        Toggle("All-day event", isOn: $isAllDay)
 
                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
                             GridRow {
-                                Text("Inicio")
+                                Text("Start")
                                     .foregroundStyle(.secondary)
                                 DatePicker(
-                                    "Inicio",
+                                    "Start",
                                     selection: $start,
                                     displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
                                 )
                                 .labelsHidden()
                             }
                             GridRow {
-                                Text("Fin")
+                                Text("End")
                                     .foregroundStyle(.secondary)
                                 DatePicker(
-                                    "Fin",
+                                    "End",
                                     selection: $end,
                                     in: start...,
                                     displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
@@ -426,13 +473,13 @@ private struct EventEditorSheet: View {
                         }
                     }
 
-                    EditorSection(title: "Información opcional", systemImage: "info.circle") {
-                        EditorField("Ubicación") {
-                            TextField("Añadir ubicación", text: $location)
+                    EditorSection(title: "Optional Data", systemImage: "info.circle") {
+                        EditorField("Location") {
+                            TextField("Add location", text: $location)
                                 .textFieldStyle(.roundedBorder)
                         }
-                        EditorField("Notas") {
-                            TextField("Añadir notas", text: $notes, axis: .vertical)
+                        EditorField("Notes") {
+                            TextField("Add notes", text: $notes, axis: .vertical)
                                 .textFieldStyle(.roundedBorder)
                                 .lineLimit(3...6)
                         }
@@ -445,8 +492,8 @@ private struct EventEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancelar", role: .cancel) { dismiss() }
-                Button("Guardar") {
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Save") {
                     isSaving = true
                     Task {
                         if await model.saveEvent(
@@ -497,7 +544,8 @@ private struct EditorSheetHeader: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.title2.weight(.semibold))
+                    .font(.title2.monospaced().weight(.semibold))
+                    .tracking(0.5)
                 Text(subtitle)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -516,13 +564,7 @@ private struct EditorSection<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
-                content
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(4)
-        } label: {
+        VStack(alignment: .leading, spacing: 10) {
             Label {
                 Text(title)
                     .foregroundStyle(.primary)
@@ -530,7 +572,18 @@ private struct EditorSection<Content: View>: View {
                 Image(systemName: systemImage)
                     .foregroundStyle(appAccentColor)
             }
-            .font(.headline)
+            .font(.caption.monospaced().weight(.bold))
+
+            VStack(alignment: .leading, spacing: 14) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .overlay {
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+            }
         }
     }
 }
@@ -598,13 +651,13 @@ extension CalendarColor {
 
     var localizedName: String {
         switch self {
-        case .red: "Rojo"
-        case .orange: "Naranja"
-        case .yellow: "Amarillo"
-        case .green: "Verde"
-        case .blue: "Azul"
-        case .purple: "Morado"
-        case .gray: "Gris"
+        case .red: "Red"
+        case .orange: "Orange"
+        case .yellow: "Yellow"
+        case .green: "Green"
+        case .blue: "Blue"
+        case .purple: "Purple"
+        case .gray: "Gray"
         }
     }
 }

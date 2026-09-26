@@ -15,7 +15,7 @@ struct RootView: View {
             }
         }
         .frame(minWidth: 1_100, minHeight: 700)
-        .task { await model.refresh() }
+        .task { await model.start() }
     }
 
     private var vaultGate: some View {
@@ -27,9 +27,11 @@ struct RootView: View {
                 .background(appAccentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 18))
 
             Text(KansolendarBuildInfo.productName)
-                .font(.largeTitle.weight(.semibold))
+                .font(.largeTitle.monospaced().weight(.semibold))
+                .tracking(1.2)
 
-            Text("Tu calendario permanece en este Mac.")
+            Text("LOCAL / ENCRYPTED / OFFLINE")
+                .font(.caption.monospaced().weight(.semibold))
                 .foregroundStyle(.secondary)
 
             statePanel
@@ -47,7 +49,7 @@ struct RootView: View {
                     .accessibilityIdentifier("vault-message")
             }
 
-            Text("Sin cuentas, servidores ni sincronización.")
+            Text("Your calendar stays on this Mac. No accounts. No servers. No sync.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 4)
@@ -60,59 +62,59 @@ struct RootView: View {
     @ViewBuilder
     private var statePanel: some View {
         if model.isBusy {
-            ProgressView("Preparando el almacén privado…")
+            ProgressView("Preparing encrypted storage…")
                 .controlSize(.small)
         } else {
             switch model.vaultState {
             case .notCreated:
-                Button("Crear calendario privado", systemImage: "lock.shield") {
+                Button("Create Private Vault", systemImage: "lock.shield") {
                     model.createVault()
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("create-vault")
-                Text("La clave se genera en este Mac. No necesitas crear una cuenta.")
+                Text("The key is generated on this Mac. No account required.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .locked:
-                Button("Desbloquear calendario", systemImage: "lock.open") {
+                Button("Retry Unlock", systemImage: "touchid") {
                     model.unlock()
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("unlock-vault")
-                Text("macOS solicitará autenticación para usar la clave local.")
+                Text("Touch ID or your Mac password unlocks the local key.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .unlocked:
-                Label("Almacén privado desbloqueado", systemImage: "lock.open.fill")
+                Label("Private vault unlocked", systemImage: "lock.open.fill")
                     .font(.headline)
                     .foregroundStyle(appAccentColor)
-                Text("La agenda todavía está en construcción.")
+                Text("Calendar data is available for this session.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button("Bloquear ahora", systemImage: "lock") {
+                Button("Lock Now", systemImage: "lock") {
                     model.lock()
                 }
                 .accessibilityIdentifier("lock-vault")
             case .unlocking:
-                ProgressView("Esperando autenticación de macOS…")
+                ProgressView("Waiting for macOS authentication…")
                     .controlSize(.small)
             case .recoveryRequired:
-                Label("Se necesita recuperar la clave", systemImage: "exclamationmark.lock")
+                Label("Key recovery required", systemImage: "exclamationmark.lock")
                     .font(.headline)
-                Text("No se ha creado una clave de reemplazo. La recuperación aún no está disponible.")
+                Text("No replacement key was created. Recovery is not available yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             case .corrupt:
-                Label("No se puede abrir el almacén", systemImage: "exclamationmark.triangle")
+                Label("The vault cannot be opened", systemImage: "exclamationmark.triangle")
                     .font(.headline)
-                Text("Los datos se conservarán sin sobrescribirlos.")
+                Text("Your data will be preserved without being overwritten.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case nil:
-                Label("Almacén local no disponible", systemImage: "externaldrive.badge.exclamationmark")
+                Label("Local vault unavailable", systemImage: "externaldrive.badge.exclamationmark")
                     .font(.headline)
             }
         }
@@ -130,14 +132,22 @@ final class VaultViewModel {
     private(set) var isLoadingContent = false
     private(set) var isExporting = false
     var message: String?
+    private var hasAttemptedAutomaticUnlock = false
 
     init() {
         do {
             vault = try KansolendarVault()
         } catch {
             vault = nil
-            message = "No se pudo preparar el almacén local. No se ha guardado información personal."
+            message = "Local storage could not be prepared. No personal information was saved."
         }
+    }
+
+    func start() async {
+        await refresh()
+        guard vaultState == .locked, !hasAttemptedAutomaticUnlock else { return }
+        hasAttemptedAutomaticUnlock = true
+        unlock()
     }
 
     func refresh() async {
@@ -147,7 +157,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             message = Self.message(for: error)
         } catch {
-            message = "No se pudo consultar el estado del almacén local."
+            message = "The local vault state could not be read."
         }
     }
 
@@ -165,7 +175,7 @@ final class VaultViewModel {
                 message = Self.message(for: error)
                 await refresh()
             } catch {
-                message = "No se pudo crear el almacén privado. No se ha guardado información personal."
+                message = "The private vault could not be created. No personal information was saved."
                 await refresh()
             }
         }
@@ -186,7 +196,7 @@ final class VaultViewModel {
                 message = Self.message(for: error)
                 await refresh()
             } catch {
-                message = "No se pudo desbloquear el almacén local."
+                message = "The local vault could not be unlocked."
                 await refresh()
             }
         }
@@ -217,7 +227,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             handleContentError(error)
         } catch {
-            message = "No se pudo cargar el calendario local."
+            message = "The local calendar could not be loaded."
         }
     }
 
@@ -238,7 +248,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             handleContentError(error)
         } catch {
-            message = "El nombre del calendario no es válido."
+            message = "The calendar name is not valid."
         }
         return false
     }
@@ -282,7 +292,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             handleContentError(error)
         } catch {
-            message = "Revisa el título y el intervalo del evento."
+            message = "Check the event title and time range."
         }
         return false
     }
@@ -296,7 +306,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             handleContentError(error)
         } catch {
-            message = "No se pudo eliminar el evento."
+            message = "The event could not be deleted."
         }
         return false
     }
@@ -304,7 +314,7 @@ final class VaultViewModel {
     func moveEvent(id: UUID, to date: CivilDate) async -> Bool {
         guard let vault, let stored = events.first(where: { $0.event.id == id }) else { return false }
         guard stored.recurrence == nil else {
-            message = "Las series recurrentes se mueven desde su editor para evitar cambios ambiguos."
+            message = "Recurring series must be moved from their editor to avoid ambiguous changes."
             return false
         }
         do {
@@ -321,7 +331,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             handleContentError(error)
         } catch {
-            message = "No se pudo mover el evento a ese día. Revisa el cambio horario."
+            message = "The event could not be moved to that day. Check the time-zone transition."
         }
         return false
     }
@@ -335,7 +345,7 @@ final class VaultViewModel {
         } catch let error as VaultError {
             handleContentError(error)
         } catch {
-            message = "No se pudo eliminar el calendario."
+            message = "The calendar could not be deleted."
         }
         return false
     }
@@ -348,13 +358,13 @@ final class VaultViewModel {
         defer { if scopedAccess { url.stopAccessingSecurityScopedResource() } }
         do {
             try await vault.createBackup(at: url)
-            message = "Backup cifrado guardado. Conserva el kit de recuperación por separado."
+            message = "Encrypted backup saved. Keep the recovery kit separately."
         } catch let error as VaultError {
             message = error == .conflict
-                ? "Ese archivo ya existe. Elige un nombre nuevo para no sobrescribir un backup anterior."
+                ? "That file already exists. Choose a new name to preserve the previous backup."
                 : Self.message(for: error)
         } catch {
-            message = "No se pudo crear el backup cifrado."
+            message = "The encrypted backup could not be created."
         }
     }
 
@@ -366,13 +376,13 @@ final class VaultViewModel {
         defer { if scopedAccess { url.stopAccessingSecurityScopedResource() } }
         do {
             try await vault.exportRecoveryKit(at: url)
-            message = "Kit de recuperación guardado. No lo guardes junto al backup."
+            message = "Recovery kit saved. Do not store it with the backup."
         } catch let error as VaultError {
             message = error == .conflict
-                ? "Ese archivo ya existe. Elige un nombre nuevo para no sobrescribirlo."
+                ? "That file already exists. Choose a new name instead of overwriting it."
                 : Self.message(for: error)
         } catch {
-            message = "No se pudo exportar el kit de recuperación."
+            message = "The recovery kit could not be exported."
         }
     }
 
@@ -478,35 +488,35 @@ final class VaultViewModel {
     static func message(for error: VaultError) -> String {
         switch error {
         case .authenticationCancelled:
-            "Autenticación cancelada. El calendario sigue bloqueado."
+            "Authentication cancelled. The calendar remains locked."
         case .authenticationFailed:
-            "macOS no autorizó el acceso. El calendario sigue bloqueado."
+            "macOS denied access. The calendar remains locked."
         case .keychainUnavailable:
-            "macOS no pudo acceder al almacén seguro. El calendario no se ha desbloqueado."
+            "macOS could not access secure storage. The calendar was not unlocked."
         case .recoveryRequired:
-            "Falta la clave original. No se generará otra automáticamente."
+            "The original key is missing. A replacement will not be generated automatically."
         case .corruptVault:
-            "El almacén no superó la comprobación de integridad; se conservarán sus archivos."
+            "The vault failed its integrity check; its files will be preserved."
         case .unsupportedFormat:
-            "Este almacén usa un formato que esta versión no puede abrir."
+            "This vault uses a format that this version cannot open."
         case .vaultAlreadyCreated:
-            "Ya existe un calendario privado en este Mac."
+            "A private calendar already exists on this Mac."
         case .vaultNotCreated:
-            "Todavía no se ha creado un calendario privado."
+            "A private calendar has not been created yet."
         case .locked:
-            "El calendario está bloqueado."
+            "The calendar is locked."
         case .conflict, .duplicateUID:
-            "La operación entra en conflicto con datos existentes."
+            "The operation conflicts with existing data."
         case .timeZoneRulesChanged:
-            "Las reglas horarias del sistema cambiaron; revisa las horas guardadas antes de editarlas."
+            "System time-zone rules changed; review saved times before editing them."
         case .unlockInProgress:
-            "Ya hay una solicitud de autenticación en curso."
+            "An authentication request is already in progress."
         case .invalidInput:
-            "Los datos de la operación no son válidos. No se ha modificado el calendario."
+            "The operation data is invalid. The calendar was not changed."
         case .queryLimitExceeded:
-            "La búsqueda es demasiado amplia. Acota el intervalo y vuelve a intentarlo."
+            "The search is too broad. Narrow the range and try again."
         case .storageUnavailable:
-            "El almacén local no está disponible. No se ha mostrado información parcial."
+            "The local vault is unavailable. No partial information was shown."
         }
     }
 }

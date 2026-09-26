@@ -29,9 +29,9 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 
     var localizedName: String {
         switch self {
-        case .system: "Sistema"
-        case .light: "Claro"
-        case .dark: "Oscuro"
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
         }
     }
 
@@ -67,13 +67,13 @@ enum AppAccent: String, CaseIterable, Identifiable {
 
     var localizedName: String {
         switch self {
-        case .cyan: "Cian"
-        case .blue: "Azul"
-        case .indigo: "Índigo"
-        case .purple: "Morado"
-        case .pink: "Rosa"
-        case .orange: "Naranja"
-        case .green: "Verde"
+        case .cyan: "Cyan"
+        case .blue: "Blue"
+        case .indigo: "Indigo"
+        case .purple: "Purple"
+        case .pink: "Pink"
+        case .orange: "Orange"
+        case .green: "Green"
         }
     }
 
@@ -134,8 +134,8 @@ private struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Apariencia") {
-                Picker("Tema", selection: $appearance) {
+            Section("Appearance") {
+                Picker("Mode", selection: $appearance) {
                     ForEach(AppAppearance.allCases) { option in
                         Label(option.localizedName, systemImage: option.systemImage)
                             .tag(option.rawValue)
@@ -143,11 +143,11 @@ private struct AppearanceSettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("Sistema adapta Kansolendar automáticamente a la apariencia configurada en macOS.")
+                Text("System follows the appearance configured in macOS.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                LabeledContent("Color de acento") {
+                LabeledContent("Accent color") {
                     HStack(spacing: 12) {
                         ForEach(AppAccent.allCases) { option in
                             Button {
@@ -175,6 +175,6 @@ private struct AppearanceSettingsView: View {
         .formStyle(.grouped)
         .padding(8)
         .frame(width: 470, height: 230)
-        .navigationTitle("Ajustes")
+        .navigationTitle("Settings")
     }
 }

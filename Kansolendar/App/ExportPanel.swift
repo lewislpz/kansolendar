@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 enum ExportPanel {
     static func chooseBackupDestination() -> URL? {
         chooseDestination(
-            title: "Guardar backup cifrado",
-            message: "El backup contiene únicamente payloads cifrados. Necesita el kit de recuperación por separado para abrirse en otro Mac.",
+            title: "Save Encrypted Backup",
+            message: "The backup contains encrypted payloads only. A separate recovery kit is required to open it on another Mac.",
             name: "Kansolendar-Backup.kansobackup",
             type: UTType(exportedAs: "local.kansolendar.backup", conformingTo: .data)
         )
@@ -14,8 +14,8 @@ enum ExportPanel {
 
     static func chooseRecoveryKitDestination() -> URL? {
         chooseDestination(
-            title: "Guardar kit de recuperación",
-            message: "Este archivo permite descifrar el backup. Guárdalo separado y en un lugar seguro.",
+            title: "Save Recovery Kit",
+            message: "This file can decrypt the backup. Store it separately in a secure location.",
             name: "Kansolendar-Recovery.txt",
             type: .plainText
         )

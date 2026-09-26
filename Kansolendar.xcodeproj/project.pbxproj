@@ -14,6 +14,7 @@
 		0D0000000000000000000105 /* CalendarWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000205 /* CalendarWorkspaceView.swift */; };
 		0D0000000000000000000106 /* ExportPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000206 /* ExportPanel.swift */; };
 		0D0000000000000000000107 /* MonthCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000207 /* MonthCalendarView.swift */; };
+		0D0000000000000000000108 /* CalendarScaleViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000208 /* CalendarScaleViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		0D0000000000000000000205 /* CalendarWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWorkspaceView.swift; sourceTree = "<group>"; };
 		0D0000000000000000000206 /* ExportPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPanel.swift; sourceTree = "<group>"; };
 		0D0000000000000000000207 /* MonthCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthCalendarView.swift; sourceTree = "<group>"; };
+		0D0000000000000000000208 /* CalendarScaleViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScaleViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +66,7 @@
 				0D0000000000000000000205 /* CalendarWorkspaceView.swift */,
 				0D0000000000000000000206 /* ExportPanel.swift */,
 				0D0000000000000000000207 /* MonthCalendarView.swift */,
+				0D0000000000000000000208 /* CalendarScaleViews.swift */,
 				0D0000000000000000000202 /* RootView.swift */,
 			);
 			path = App;
@@ -163,6 +166,7 @@
 				0D0000000000000000000105 /* CalendarWorkspaceView.swift in Sources */,
 				0D0000000000000000000106 /* ExportPanel.swift in Sources */,
 				0D0000000000000000000107 /* MonthCalendarView.swift in Sources */,
+				0D0000000000000000000108 /* CalendarScaleViews.swift in Sources */,
 				0D0000000000000000000101 /* KansolendarApp.swift in Sources */,
 				0D0000000000000000000102 /* RootView.swift in Sources */,
 			);
