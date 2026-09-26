@@ -42,6 +42,7 @@ venv/
 
 # Build, coverage, and framework outputs
 .build/
+.swiftpm/
 DerivedData/
 dist/
 build/
