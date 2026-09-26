@@ -32,6 +32,24 @@ struct CalendarWorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedCalendarID) {
+                HStack(spacing: 10) {
+                    Image("KansolendarLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 34, height: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("KANSOLENDAR")
+                            .font(.caption.monospaced().weight(.bold))
+                        Text("PRIVATE CALENDAR")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 6)
+                .accessibilityElement(children: .combine)
+
                 Section {
                     ForEach(model.calendars) { calendar in
                         Label {

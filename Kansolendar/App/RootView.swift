@@ -20,11 +20,16 @@ struct RootView: View {
 
     private var vaultGate: some View {
         VStack(spacing: 18) {
-            Image(systemName: "calendar.badge.lock")
-                .font(.system(size: 38, weight: .light))
-                .foregroundStyle(appAccentColor)
+            Image("KansolendarLogo")
+                .resizable()
+                .scaledToFit()
                 .frame(width: 72, height: 72)
-                .background(appAccentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 18))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(appAccentColor.opacity(0.35), lineWidth: 1)
+                }
+                .accessibilityHidden(true)
 
             Text(KansolendarBuildInfo.productName)
                 .font(.largeTitle.monospaced().weight(.semibold))
