@@ -1,3 +1,4 @@
+import AppKit
 import KansolendarCore
 import KansolendarStorage
 import SwiftUI
@@ -221,8 +222,12 @@ private struct CalendarEditorSheet: View {
                 .textFieldStyle(.roundedBorder)
             Picker("Color", selection: $color) {
                 ForEach(CalendarColor.allCases, id: \.self) { option in
-                    Label(option.localizedName, systemImage: "circle.fill")
-                        .foregroundStyle(option.swiftUIColor)
+                    Label {
+                        Text(option.localizedName)
+                    } icon: {
+                        option.swatchImage
+                            .accessibilityHidden(true)
+                    }
                         .tag(option)
                 }
             }
@@ -333,6 +338,16 @@ private struct EventEditorSheet: View {
 }
 
 extension CalendarColor {
+    var swatchImage: Image {
+        let image = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
+            nsColor.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            return true
+        }
+        image.isTemplate = false
+        return Image(nsImage: image).renderingMode(.original)
+    }
+
     var swiftUIColor: Color {
         switch self {
         case .red: .red
@@ -342,6 +357,18 @@ extension CalendarColor {
         case .blue: .blue
         case .purple: .purple
         case .gray: .gray
+        }
+    }
+
+    private var nsColor: NSColor {
+        switch self {
+        case .red: .systemRed
+        case .orange: .systemOrange
+        case .yellow: .systemYellow
+        case .green: .systemGreen
+        case .blue: .systemBlue
+        case .purple: .systemPurple
+        case .gray: .systemGray
         }
     }
 
