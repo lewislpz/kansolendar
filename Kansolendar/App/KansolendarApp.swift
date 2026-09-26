@@ -10,7 +10,6 @@ struct KansolendarApp: App {
         }
         .defaultSize(width: 1_400, height: 860)
         .windowResizability(.contentMinSize)
-        .windowToolbarStyle(.unified(showsTitle: false))
 
         Settings {
             AppearanceSettingsView()

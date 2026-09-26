@@ -91,22 +91,6 @@ struct CalendarWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search by title")
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                HStack(spacing: 8) {
-                    Image("KansolendarLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .accessibilityHidden(true)
-                    Text("KANSOLENDAR")
-                        .font(.caption.monospaced().weight(.bold))
-                        .tracking(0.6)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Kansolendar")
-            }
-
             ToolbarItemGroup {
                 Button("New Event", systemImage: "plus") {
                     editorEvent = nil
