@@ -423,27 +423,30 @@ private struct EventEditorSheet: View {
             Divider()
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     EditorSection(title: "Details", systemImage: "text.alignleft") {
-                        EditorField("Title", hint: "Describe the event briefly") {
-                            TextField("Event title", text: $title)
-                                .textFieldStyle(.roundedBorder)
-                        }
-
-                        EditorField("Calendar") {
-                            Picker("Calendar", selection: $calendarID) {
-                                ForEach(model.calendars) { calendar in
-                                    Label {
-                                        Text(calendar.name)
-                                    } icon: {
-                                        calendar.color.swatchImage
-                                            .accessibilityHidden(true)
-                                    }
-                                    .tag(calendar.id)
-                                }
+                        HStack(alignment: .top, spacing: 16) {
+                            EditorField("Title", hint: "Describe the event briefly") {
+                                TextField("Event title", text: $title)
+                                    .textFieldStyle(.roundedBorder)
                             }
-                            .labelsHidden()
-                            .disabled(event != nil)
+
+                            EditorField("Calendar") {
+                                Picker("Calendar", selection: $calendarID) {
+                                    ForEach(model.calendars) { calendar in
+                                        Label {
+                                            Text(calendar.name)
+                                        } icon: {
+                                            calendar.color.swatchImage
+                                                .accessibilityHidden(true)
+                                        }
+                                        .tag(calendar.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                .disabled(event != nil)
+                            }
+                            .frame(width: 220)
                         }
                     }
 
@@ -451,27 +454,29 @@ private struct EventEditorSheet: View {
                         Toggle("All-day event", isOn: $isAllDay)
 
                         if !isAllDay {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("START TIME")
-                                    .font(.caption.monospaced().weight(.bold))
-                                    .foregroundStyle(.secondary)
-                                TimeWheelPicker(selection: $start, accessibilityLabel: "Start Time")
-                            }
+                            HStack(alignment: .top, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("START TIME")
+                                        .font(.caption.monospaced().weight(.bold))
+                                        .foregroundStyle(.secondary)
+                                    TimeWheelPicker(selection: $start, accessibilityLabel: "Start Time")
+                                }
+                                .frame(maxWidth: .infinity)
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("END TIME")
-                                    .font(.caption.monospaced().weight(.bold))
-                                    .foregroundStyle(.secondary)
-                                TimeWheelPicker(selection: $end, accessibilityLabel: "End Time")
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("END TIME")
+                                        .font(.caption.monospaced().weight(.bold))
+                                        .foregroundStyle(.secondary)
+                                    TimeWheelPicker(selection: $end, accessibilityLabel: "End Time")
+                                }
+                                .frame(maxWidth: .infinity)
                             }
                         }
 
                         Divider()
 
-                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
-                            GridRow {
-                                Text("Start Date")
-                                    .foregroundStyle(.secondary)
+                        HStack(alignment: .top, spacing: 16) {
+                            EditorField("Start Date") {
                                 DatePicker(
                                     "Start Date",
                                     selection: $start,
@@ -480,9 +485,7 @@ private struct EventEditorSheet: View {
                                 .datePickerStyle(.field)
                                 .labelsHidden()
                             }
-                            GridRow {
-                                Text("End Date")
-                                    .foregroundStyle(.secondary)
+                            EditorField("End Date") {
                                 DatePicker(
                                     "End Date",
                                     selection: $end,
@@ -496,18 +499,20 @@ private struct EventEditorSheet: View {
                     }
 
                     EditorSection(title: "Optional Data", systemImage: "info.circle") {
-                        EditorField("Location") {
-                            TextField("Add location", text: $location)
-                                .textFieldStyle(.roundedBorder)
-                        }
-                        EditorField("Notes") {
-                            TextField("Add notes", text: $notes, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(3...6)
+                        HStack(alignment: .top, spacing: 16) {
+                            EditorField("Location") {
+                                TextField("Add location", text: $location)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            EditorField("Notes") {
+                                TextField("Add notes", text: $notes, axis: .vertical)
+                                    .textFieldStyle(.roundedBorder)
+                                    .lineLimit(2...4)
+                            }
                         }
                     }
                 }
-                .padding(22)
+                .padding(18)
             }
 
             Divider()
@@ -539,7 +544,7 @@ private struct EventEditorSheet: View {
             .padding(.vertical, 14)
             .background(.bar)
         }
-        .frame(width: 560, height: 620)
+        .frame(width: 760, height: 580)
         .onChange(of: isAllDay) { _, enabled in
             guard enabled, Calendar.autoupdatingCurrent.isDate(start, inSameDayAs: end),
                   let nextDay = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: start) else { return }
