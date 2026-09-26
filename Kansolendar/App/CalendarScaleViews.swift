@@ -22,18 +22,15 @@ struct CalendarModeBar: View {
     @Binding var mode: CalendarViewMode
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text("VIEW_MODE")
-                .font(.caption2.monospaced().weight(.semibold))
-                .foregroundStyle(.secondary)
+        HStack(spacing: 10) {
             ForEach(CalendarViewMode.allCases) { option in
                 Button {
                     mode = option
                 } label: {
                     Label(option.title, systemImage: option.systemImage)
-                        .font(.caption.monospaced().weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .font(.callout.monospaced().weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
                         .foregroundStyle(mode == option ? accent : .secondary)
                         .background(mode == option ? accent.opacity(0.12) : .clear)
                         .overlay {
@@ -47,7 +44,7 @@ struct CalendarModeBar: View {
             Spacer()
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
