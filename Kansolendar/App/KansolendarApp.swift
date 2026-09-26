@@ -8,6 +8,8 @@ struct KansolendarApp: App {
             RootView()
                 .appTheme()
         }
+        .defaultSize(width: 1_180, height: 760)
+        .windowResizability(.contentMinSize)
 
         Settings {
             AppearanceSettingsView()
