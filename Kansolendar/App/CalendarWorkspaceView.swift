@@ -31,14 +31,6 @@ struct CalendarWorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedCalendarID) {
-                Label {
-                    Text("Todos los eventos")
-                } icon: {
-                    Image(systemName: "calendar")
-                        .foregroundStyle(appAccentColor)
-                }
-                    .tag(nil as UUID?)
-
                 Section("Calendarios") {
                     ForEach(model.calendars) { calendar in
                         Label {
@@ -65,13 +57,22 @@ struct CalendarWorkspaceView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(appAccentColor)
-                    if let selectedCalendarID,
-                       let calendar = model.calendars.first(where: { $0.id == selectedCalendarID }) {
-                        Button("Eliminar calendario", systemImage: "trash", role: .destructive) {
-                            calendarPendingDeletion = calendar
+                    if let selectedCalendarID {
+                        Button("Mostrar todos los eventos", systemImage: "line.3.horizontal.decrease.circle.fill") {
+                            self.selectedCalendarID = nil
                         }
                         .labelStyle(.iconOnly)
                         .buttonStyle(.plain)
+                        .foregroundStyle(appAccentColor)
+                        .help("Quitar filtro de calendario")
+
+                        if let calendar = model.calendars.first(where: { $0.id == selectedCalendarID }) {
+                            Button("Eliminar calendario", systemImage: "trash", role: .destructive) {
+                                calendarPendingDeletion = calendar
+                            }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding()
