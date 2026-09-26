@@ -1,6 +1,6 @@
 # Roadmap con dependencias y gates
 
-La «Fase 1» solicitada inicialmente corresponde a **A: documentación**. Las letras evitan confundirla con las fases de implementación. El usuario autorizó después la implementación y la fase B creó el skeleton local y probes iniciales. El soporte sigue siendo arm64; la importación de calendarios continúa aplazada.
+La «Fase 1» solicitada inicialmente corresponde a **A: documentación**. Las letras evitan confundirla con las fases de implementación. El usuario autorizó después la implementación. A fecha 2026-09-26 están implementados el dominio, la bóveda cifrada, backup/restauración, la interfaz principal y un perfil iCalendar DATE/UTC estricto. El soporte sigue siendo arm64; distribución/notarización continúa aplazada.
 
 ```text
 A documentación/revisión
@@ -29,7 +29,7 @@ C y D pueden avanzar en ramas de trabajo independientes una vez fijados contrato
 | C — Dominio y tiempo | Entidades/validación, motor de recurrencias acotado, búsquedas de referencia | B, contratos de dominio | Fixtures independientes de DST/historia/límites y cancelaciones correctas; perfil reducido cerrado. **Implementación de Core completada en 2026-09-26; validación continua y revisión integradas en esta fase** |
 | D — Persistencia, cifrado y recuperación | SQLite, actor, AEAD, migración inicial, bloqueo de acceso, backup/restore y kit | B; valores C para integración | Ningún plaintext interno; CRUD/migraciones/fallos/recovery en otra cuenta pasan; Q01/03/04 cerradas |
 | E — Calendario local usable | SwiftUI/MVVM, mes/lista/editor, calendarios, búsqueda, bloqueo visible y UX de recuperación | C + D | Flujos offline completos, accesibilidad, ocultación/borrado lógico de sesión; tests UI críticos |
-| F — Exportación .ics limitada | Exportador, selección de salida y conversiones explícitas; sin importador | C + D + flujo de E | Fixtures canónicas y validación semántica independiente de salida, límites y cancelación; sin pérdida silenciosa ni red |
+| F — Intercambio .ics limitado | Exportador e importador DATE/UTC, selección explícita, conversión zoned única a UTC | C + D + flujo de E | Round-trip y rechazo de input hostil/semántica no soportada; atomicidad, sin pérdida silenciosa ni red |
 | G — Auditoría integral y estabilización | Matriz privacidad, revisión memoria/FS/entitlements, rendimiento y restore de candidato | E + F | Cero hallazgos críticos, P01–P06 con evidencia; límites comunicados; ningún permiso innecesario |
 | H — Distribución directa | Archive, firma, notarización, .app/DMG, documentación usuario | G | Primera instalación/upgrade/restore y funcionamiento offline de artefacto final verificados |
 | I — Evaluación posterior, no comprometida | Importación si aparece necesidad; mejoras de recurrencias/VTIMEZONE o recordatorios genéricos; tienda si conviene | Uso del MVP y nuevos ADRs | No ampliar superficie sin amenaza, permisos y pruebas asociados |

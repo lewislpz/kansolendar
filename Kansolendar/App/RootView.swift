@@ -108,10 +108,15 @@ struct RootView: View {
             case .recoveryRequired:
                 Label("Key recovery required", systemImage: "exclamationmark.lock")
                     .font(.headline)
-                Text("No replacement key was created. Recovery is not available yet.")
+                Text("Choose an encrypted backup and its matching recovery kit.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                Button("Restore Backup…", systemImage: "externaldrive.badge.timemachine") {
+                    chooseAndRestoreBackup()
+                }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
             case .corrupt:
                 Label("The vault cannot be opened", systemImage: "exclamationmark.triangle")
                     .font(.headline)
@@ -123,6 +128,12 @@ struct RootView: View {
                     .font(.headline)
             }
         }
+    }
+
+    private func chooseAndRestoreBackup() {
+        guard let backup = ExportPanel.chooseBackupForRestore(),
+              let kit = ExportPanel.chooseRecoveryKitForRestore() else { return }
+        Task { await model.restoreBackup(at: backup, recoveryKitURL: kit) }
     }
 }
 
@@ -388,6 +399,65 @@ final class VaultViewModel {
                 : Self.message(for: error)
         } catch {
             message = "The recovery kit could not be exported."
+        }
+    }
+
+    func restoreBackup(at backupURL: URL, recoveryKitURL: URL) async {
+        guard let vault else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let backupAccess = backupURL.startAccessingSecurityScopedResource()
+        let kitAccess = recoveryKitURL.startAccessingSecurityScopedResource()
+        defer {
+            if backupAccess { backupURL.stopAccessingSecurityScopedResource() }
+            if kitAccess { recoveryKitURL.stopAccessingSecurityScopedResource() }
+        }
+        do {
+            try await vault.restoreBackup(at: backupURL, recoveryKitURL: recoveryKitURL)
+            vaultState = try await vault.state()
+            await loadContent()
+            message = "Encrypted backup restored and verified."
+        } catch let error as VaultError {
+            message = error == .corruptVault
+                ? "The backup or recovery kit is invalid or does not match. Your current vault was preserved."
+                : Self.message(for: error)
+        } catch {
+            message = "The backup could not be restored. Your current vault was preserved."
+        }
+    }
+
+    func exportCalendar(id: UUID, to url: URL) async {
+        guard let vault else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        do {
+            try await vault.exportCalendar(id: id, to: url)
+            message = "Calendar exported as an unencrypted iCalendar file."
+        } catch let error as VaultError {
+            message = error == .conflict ? "That file already exists. Choose a new name." : Self.message(for: error)
+        } catch {
+            message = "The calendar could not be exported."
+        }
+    }
+
+    func importCalendarEvents(from url: URL, into calendarID: UUID) async {
+        guard let vault else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let count = try await vault.importCalendarEvents(from: url, into: calendarID)
+            await loadContent()
+            message = "Imported \(count) \(count == 1 ? "event" : "events") safely."
+        } catch let error as VaultError {
+            message = error == .duplicateUID
+                ? "Import cancelled because an event UID already exists. No events were added."
+                : "This iCalendar file contains invalid or unsupported data. No events were added."
+        } catch {
+            message = "The calendar could not be imported. No events were added."
         }
     }
 

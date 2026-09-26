@@ -1,10 +1,10 @@
 # Intercambio iCalendar local
 
-Formato: `.ics`, texto UTF-8. No suscripciones, CalDAV, cuentas, iTIP operativo ni scheduling. **Revisión del propietario, 2026-09-25: importación de calendarios aplazada.** El MVP incluye solamente exportación .ics. No implementar parser, preview de entrada, comando de importar, drag-in ni asociación para abrir .ics. Restaurar backups de Kansolendar sigue siendo una función distinta e incluida.
+Formato: `.ics`, texto UTF-8. No suscripciones, CalDAV, cuentas, iTIP operativo ni scheduling. Estado implementado el 2026-09-26: exportación de eventos únicos all-day/UTC y conversión explícita de eventos zoned únicos a UTC; importación estricta y atómica de eventos all-day/UTC en un calendario seleccionado. Series recurrentes, `VTIMEZONE`, floating time, invitaciones, alarmas, adjuntos y URLs no se importan ni se exportan silenciosamente: el archivo o la exportación se rechaza. Restaurar backups de Kansolendar sigue siendo una función distinta.
 
-Se conserva a continuación el análisis de importación como referencia futura para cumplir la documentación de arquitectura; no es un requisito de implementación del MVP. La sección «Exportación y límites de zona» define la salida actual propuesta. Serializar iCalendar es lógica del formato, no criptografía propia.
+Las secciones siguientes documentan tanto el perfil estricto implementado como ampliaciones futuras. Serializar iCalendar es lógica del formato, no criptografía propia; los archivos `.ics` son plaintext deliberado.
 
-## Perfil de importación futuro — fuera del MVP
+## Perfil de importación y ampliaciones futuras
 
 | Construcción | Perfil futuro propuesto | Política |
 |---|---|---|
@@ -27,7 +27,7 @@ Se conserva a continuación el análisis de importación como referencia futura 
 | METHOD operativo (REQUEST, REPLY, CANCEL…) | No | Rechazar archivo como intercambio de agenda, no responder ni ejecutar invitaciones |
 | Propiedades X-/extensiones desconocidas | No persistidas por defecto | Informe; las que afecten tiempo/identidad impiden importar el grupo; otras requieren aceptación de pérdida |
 
-Este perfil futuro limita considerablemente archivos exportados por otros calendarios, muchos de los cuales usan VTIMEZONE. **Q05 se resuelve aplazando la importación**, sin elegir todavía un perfil de entrada definitivo. Si se retoma, revisar alcance, parser y pruebas antes de implementarlo. No afirmar «compatible con Apple/Google/Outlook» sin fixtures y matriz de funciones; esas marcas serían fuentes de archivos manuales, no integraciones ni servicios del producto.
+El perfil implementado limita considerablemente archivos exportados por otros calendarios, muchos de los cuales usan VTIMEZONE. Q05 queda resuelta mediante un perfil DATE/UTC deliberadamente estricto: lo no soportado se rechaza sin importación parcial. No afirmar «compatible con Apple/Google/Outlook» sin fixtures y matriz de funciones; esas marcas serían fuentes de archivos manuales, no integraciones ni servicios del producto.
 
 ## Reglas de texto y compatibilidad sintáctica
 
@@ -35,7 +35,7 @@ Desplegar líneas plegadas antes de interpretar propiedades; contar bytes y no r
 
 Los valores de parámetros requieren tokenización que respete comillas; no separar ingenuamente por cada `;` o `:`. Cuando se admitan parámetros que usan la extensión, tratar `^^`, `^n` y `^'` según [RFC 6868](https://www.rfc-editor.org/rfc/rfc6868); no confundir con escape de TEXT. Rechazar controles inválidos y contenido binario no soportado. No completar campos obligatorios en silencio. Tolerancias documentadas propuestas: BOM UTF-8 inicial y líneas LF, con salida siempre canónica; UTF-8 inválido se rechaza.
 
-## Pipeline y límites hostiles de importación futura
+## Pipeline y límites hostiles de importación
 
 ```text
 archivo seleccionado -> tamaño/tipo local -> lectura incremental acotada
@@ -50,7 +50,7 @@ No URLs dereferenciadas: `http:`, `https:`, `file:`, `data:`, `mailto:`, TZURL, 
 
 Error estructural/encoding/límites del archivo: cancelar todo. Incompatibilidad semántica de un grupo UID: informar y dejarlo sin seleccionar. Antes de aceptar otros grupos, explicar cuántos quedarían fuera y cuáles perderían propiedades; nunca importar menos de lo que el usuario confirmó. La escritura de todos los grupos aceptados es una única transacción; error a mitad revierte lote completo. La selección/preview vive en RAM y se invalida al bloquear.
 
-## UID, duplicados y actualizaciones en importación futura
+## UID, duplicados y actualizaciones en importación
 
 UID se conservaría para importación sin transformación semántica; IDs SQLite nuevos. En mismo calendario destino, UID existente no se sobreescribiría automáticamente. El perfil futuro básico ofrecería saltar el grupo o cancelar importación; «actualizar versión» y merge necesitarían más diseño. En otro calendario podría coexistir. Importar dos veces el mismo archivo en el mismo destino no duplicaría maestros si se elige saltar. Dentro del archivo, dos maestros con mismo UID serían conflicto: rechazar grupo en lugar de decidir por SEQUENCE/DTSTAMP.
 
@@ -75,4 +75,4 @@ Generar VERSION/PRODID estáticos, UID, DTSTAMP y demás campos admitidos; no in
 
 VTIMEZONE custom requiere resolver transiciones y posibles discrepancias con IANA; el nombre coincidente no prueba reglas iguales. No ignorar una definición embebida porque Foundation reconozca el TZID. Diseño futuro: intérprete acotado o conversión explícita a ocurrencias finitas con informe; nunca descargar TZURL. Exportar serie zoned fiel exige VTIMEZONE correcto para su alcance, también futuro. Este coste explica el perfil inicial.
 
-Pruebas del MVP: comparar salida con fixtures canónicas revisadas y validar semántica mediante herramientas locales independientes de test; igualdad de instantes en conversiones explícitas, Unicode/plegado, UID, DST, finales exclusivos, límites y ausencia de conexiones. No implementar un parser de producto para probar el exportador. Round-trip de importación, duplicates y archivos .ics hostiles quedan para la fase futura que autorice esa entrada. Los backups hostiles sí se prueban desde el MVP.
+Pruebas del MVP: round-trip DATE/UTC, escapes y plegado Unicode, UID duplicados, finales exclusivos, límites, propiedades semánticas no soportadas, atomicidad y ausencia de conexiones. Fixtures amplias de TZID/VTIMEZONE, recurrencia e invitaciones quedan para una ampliación futura. Los backups hostiles se prueban desde el MVP.

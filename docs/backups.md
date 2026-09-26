@@ -2,7 +2,7 @@
 
 Una exportación .ics es intercambio legible y potencialmente incompleto; **no es un backup**. Un backup de Kansolendar conserva estructura, payloads cifrados, excepciones, UID y preferencias privadas. Nunca incluye la DEK ni el kit de recuperación.
 
-Estado de implementación (2026-09-26): la app puede crear un snapshot `.kansobackup` mediante SQLite Online Backup mientras la bóveda está desbloqueada, verificar integridad y claves foráneas, sincronizar el archivo y publicarlo con permisos `0600` sin sobrescribir destinos existentes. También puede exportar, tras una nueva autorización de macOS, un kit de recuperación textual v1 estricto y acotado directamente a un archivo privado, sin entregar la DEK a la UI. La restauración en staging y la instalación reversible aún no están implementadas; un backup y un kit exportados deben conservarse, pero todavía no pueden importarse desde la app.
+Estado de implementación (2026-09-26): la app crea un snapshot `.kansobackup` mediante SQLite Online Backup mientras la bóveda está desbloqueada, comprueba integridad, claves foráneas y autenticación/decodificación de todos los payloads, sincroniza el archivo y lo publica con permisos `0600` sin sobrescribir destinos existentes. También exporta, tras una nueva autorización de macOS, un kit de recuperación textual v1 estricto y acotado sin entregar la DEK a la UI. La restauración copia el backup elegido a staging privado, valida esquema, identidad, clave y todas las filas antes de instalarlo, conserva una copia de seguridad de la bóveda activa durante la operación y revierte ante error.
 
 ## Tipos y riesgos
 

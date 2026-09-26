@@ -324,6 +324,139 @@ struct SQLiteVaultRepositoryTests {
         }
     }
 
+    @Test("backup plus matching recovery kit replaces the active vault only after validation")
+    func restoreBackupWithMatchingKit() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = try SQLiteVaultDatabase(
+            path: root.appendingPathComponent("source.sqlite").path,
+            keyStore: FixtureVaultKeyStore()
+        )
+        _ = try await source.createVault()
+        let restoredCalendar = try LocalCalendar(name: "Recovered", defaultTimeZone: TimeZoneID("UTC"))
+        try await source.saveCalendar(restoredCalendar)
+        let backup = root.appendingPathComponent("source.kansobackup")
+        let kit = root.appendingPathComponent("source-recovery.txt")
+        try await source.createSnapshot(at: backup.path)
+        try await source.exportRecoveryKit(to: kit.path)
+
+        let target = try SQLiteVaultDatabase(
+            path: root.appendingPathComponent("target.sqlite").path,
+            keyStore: FixtureVaultKeyStore()
+        )
+        _ = try await target.createVault()
+        let previousCalendar = try LocalCalendar(name: "Previous", defaultTimeZone: TimeZoneID("UTC"))
+        try await target.saveCalendar(previousCalendar)
+
+        try await target.restoreBackup(from: backup.path, recoveryKitData: Data(contentsOf: kit))
+
+        #expect(try await target.calendars() == [restoredCalendar])
+        #expect(await target.vaultState().isUnlocked)
+    }
+
+    @Test("wrong recovery kit preserves the active vault")
+    func wrongRecoveryKitPreservesActiveVault() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = try SQLiteVaultDatabase(
+            path: root.appendingPathComponent("source.sqlite").path,
+            keyStore: FixtureVaultKeyStore()
+        )
+        _ = try await source.createVault()
+        let backup = root.appendingPathComponent("source.kansobackup")
+        try await source.createSnapshot(at: backup.path)
+
+        let target = try SQLiteVaultDatabase(
+            path: root.appendingPathComponent("target.sqlite").path,
+            keyStore: FixtureVaultKeyStore()
+        )
+        _ = try await target.createVault()
+        let previousCalendar = try LocalCalendar(name: "Must survive", defaultTimeZone: TimeZoneID("UTC"))
+        try await target.saveCalendar(previousCalendar)
+        let wrongKit = root.appendingPathComponent("wrong-recovery.txt")
+        try await target.exportRecoveryKit(to: wrongKit.path)
+
+        await #expect(throws: (any Error).self) {
+            try await target.restoreBackup(from: backup.path, recoveryKitData: Data(contentsOf: wrongKit))
+        }
+        #expect(try await target.calendars() == [previousCalendar])
+    }
+
+    @Test("recovery kit restores a vault after its local key is missing")
+    func restoreAfterMissingLocalKey() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let keyStore = FixtureVaultKeyStore()
+        let database = try SQLiteVaultDatabase(
+            path: root.appendingPathComponent("vault.sqlite").path,
+            keyStore: keyStore
+        )
+        _ = try await database.createVault()
+        let calendar = try LocalCalendar(name: "Recover me", defaultTimeZone: TimeZoneID("UTC"))
+        try await database.saveCalendar(calendar)
+        let backup = root.appendingPathComponent("backup.kansobackup")
+        let kit = root.appendingPathComponent("recovery.txt")
+        try await database.createSnapshot(at: backup.path)
+        try await database.exportRecoveryKit(to: kit.path)
+        let metadata = try #require(try await database.metadata())
+        await database.lockVault()
+        try await keyStore.delete(vaultID: metadata.vaultID, keyID: metadata.activeKeyID)
+        await #expect(throws: VaultStorageError.recoveryRequired) {
+            try await database.unlockVault()
+        }
+
+        try await database.restoreBackup(from: backup.path, recoveryKitData: Data(contentsOf: kit))
+
+        #expect(try await database.calendars() == [calendar])
+        #expect(await database.vaultState().isUnlocked)
+    }
+
+    @Test("iCalendar import is atomic when UIDs conflict")
+    func iCalendarImportIsAtomic() async throws {
+        let database = try SQLiteVaultDatabase(path: ":memory:", keyStore: FixtureVaultKeyStore())
+        _ = try await database.createVault()
+        let calendar = try LocalCalendar(name: "Imports", defaultTimeZone: TimeZoneID("UTC"))
+        try await database.saveCalendar(calendar)
+        let first = try makeEvent(calendarID: calendar.id, uid: "duplicate", title: "First")
+        let second = try makeEvent(calendarID: calendar.id, uid: "duplicate", title: "Second")
+
+        await #expect(throws: VaultStorageError.duplicateUID) {
+            try await database.importEvents([first, second], into: calendar.id)
+        }
+        #expect(try await database.events().isEmpty)
+    }
+
+    @Test("app-facing iCalendar export and import use private files")
+    func iCalendarFileRoundTrip() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let database = try SQLiteVaultDatabase(path: ":memory:", keyStore: FixtureVaultKeyStore())
+        let vault = KansolendarVault(storage: database)
+        _ = try await vault.createVault()
+        let source = try LocalCalendar(name: "Source", defaultTimeZone: TimeZoneID("UTC"))
+        let destination = try LocalCalendar(name: "Destination", defaultTimeZone: TimeZoneID("UTC"))
+        try await vault.save(source)
+        try await vault.save(destination)
+        let event = try makeEvent(calendarID: source.id, uid: "portable", title: "Portable")
+        try await vault.save(event)
+        let file = root.appendingPathComponent("calendar.ics")
+
+        try await vault.exportCalendar(id: source.id, to: file)
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        #expect(try await vault.importCalendarEvents(from: file, into: destination.id) == 1)
+        let imported = try #require(try await vault.events().first { $0.event.calendarID == destination.id })
+        #expect(imported.event.uid == event.uid)
+        #expect(imported.event.title == event.title)
+    }
+
     @Test("application support location rejects a symlinked vault directory")
     func rejectsSymlinkedVaultDirectory() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -421,6 +554,10 @@ private actor FixtureVaultKeyStore: VaultKeyStore {
         let key = SymmetricKey(size: .bits256)
         keys[KeychainVaultKeyStore.account(vaultID: vaultID, keyID: keyID)] = key.withUnsafeBytes { Data($0) }
         return key
+    }
+
+    func install(_ key: SymmetricKey, vaultID: UUID, keyID: UUID) async throws {
+        keys[KeychainVaultKeyStore.account(vaultID: vaultID, keyID: keyID)] = key.withUnsafeBytes { Data($0) }
     }
 
     func load(vaultID: UUID, keyID: UUID) async throws -> SymmetricKey {

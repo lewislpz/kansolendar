@@ -10,7 +10,13 @@ internal actor KeychainVaultKeyStore: VaultKeyStore {
 
     func create(vaultID: UUID, keyID: UUID) async throws -> SymmetricKey {
         let key = Self.generateDataEncryptionKey()
+        try await install(key, vaultID: vaultID, keyID: keyID)
+        return key
+    }
+
+    func install(_ key: SymmetricKey, vaultID: UUID, keyID: UUID) async throws {
         let keyData = key.withUnsafeBytes { Data($0) }
+        guard keyData.count == 32 else { throw VaultKeyStoreError.invalidKeyMaterial }
         let accessControl = try Self.makeUserPresenceAccessControl()
         let query = Self.makeAddQuery(
             keyData: keyData,
@@ -23,8 +29,6 @@ internal actor KeychainVaultKeyStore: VaultKeyStore {
         guard status == errSecSuccess else {
             throw Self.error(for: status)
         }
-
-        return key
     }
 
     func load(vaultID: UUID, keyID: UUID) async throws -> SymmetricKey {

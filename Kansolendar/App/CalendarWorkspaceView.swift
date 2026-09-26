@@ -16,6 +16,8 @@ struct CalendarWorkspaceView: View {
     @State private var calendarPendingDeletion: LocalCalendar?
     @State private var searchText = ""
     @State private var isConfirmingRecoveryExport = false
+    @State private var restoreSelection: (backup: URL, kit: URL)?
+    @State private var isConfirmingRestore = false
     @State private var selectedDate = CivilDate.localToday
     @State private var displayedMonth = CalendarMonth(containing: CivilDate.localToday)
     @State private var viewMode: CalendarViewMode = .month
@@ -112,6 +114,29 @@ struct CalendarWorkspaceView: View {
                     Button("Recovery Kit…", systemImage: "key") {
                         isConfirmingRecoveryExport = true
                     }
+                    Divider()
+                    Button("Export Selected Calendar…", systemImage: "calendar.badge.arrowtrianglehead.up") {
+                        guard let calendar = selectedCalendar else { return }
+                        guard let url = ExportPanel.chooseCalendarDestination(calendarName: calendar.name) else { return }
+                        Task { await model.exportCalendar(id: calendar.id, to: url) }
+                    }
+                    .disabled(selectedCalendar == nil)
+                }
+                .disabled(model.isExporting)
+
+                Menu("Import", systemImage: "square.and.arrow.down") {
+                    Button("Restore Encrypted Backup…", systemImage: "externaldrive.badge.timemachine") {
+                        guard let backup = ExportPanel.chooseBackupForRestore(),
+                              let kit = ExportPanel.chooseRecoveryKitForRestore() else { return }
+                        restoreSelection = (backup, kit)
+                        isConfirmingRestore = true
+                    }
+                    Button("Import Events into Selected Calendar…", systemImage: "calendar.badge.plus") {
+                        guard let calendarID = selectedCalendarID,
+                              let url = ExportPanel.chooseCalendarToImport() else { return }
+                        Task { await model.importCalendarEvents(from: url, into: calendarID) }
+                    }
+                    .disabled(selectedCalendarID == nil)
                 }
                 .disabled(model.isExporting)
 
@@ -179,6 +204,21 @@ struct CalendarWorkspaceView: View {
         } message: {
             Text("Store it separately from the backup. Anyone with both files can read the calendar.")
         }
+        .alert("Replace the current encrypted vault?", isPresented: $isConfirmingRestore) {
+            Button("Cancel", role: .cancel) { restoreSelection = nil }
+            Button("Validate and Restore", role: .destructive) {
+                guard let selection = restoreSelection else { return }
+                restoreSelection = nil
+                Task { await model.restoreBackup(at: selection.backup, recoveryKitURL: selection.kit) }
+            }
+        } message: {
+            Text("Kansolendar will fully validate the backup and recovery kit first. If validation fails, the current vault remains unchanged.")
+        }
+    }
+
+    private var selectedCalendar: LocalCalendar? {
+        guard let selectedCalendarID else { return nil }
+        return model.calendars.first { $0.id == selectedCalendarID }
     }
 
     @ViewBuilder

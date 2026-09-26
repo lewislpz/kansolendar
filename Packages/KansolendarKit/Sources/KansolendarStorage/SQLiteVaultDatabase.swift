@@ -19,6 +19,7 @@ internal enum SQLiteVaultError: Error, Equatable, Sendable {
     case foreignKeyFailure
     case snapshotDestinationExists
     case unsafeSnapshotDestination
+    case restoreFailed
 }
 
 internal enum VaultAccessState: Sendable, Equatable {
@@ -226,9 +227,142 @@ internal actor SQLiteVaultDatabase {
         }
     }
 
-    func createSnapshot(at path: String) throws {
+    func createSnapshot(at path: String) async throws {
         _ = try unlockedGeneration()
+        guard let metadata = try metadata() else { throw VaultStorageError.vaultNotCreated }
+        let key = try await keyStore.load(vaultID: metadata.vaultID, keyID: metadata.activeKeyID)
         try connection.snapshot(to: path)
+        do {
+            try await Self.validateBackup(at: path, key: key, expectedVaultID: metadata.vaultID, expectedKeyID: metadata.activeKeyID)
+        } catch {
+            try? FileManager.default.removeItem(atPath: path)
+            throw error
+        }
+    }
+
+    func restoreBackup(from sourcePath: String, recoveryKitData: Data) async throws {
+        let kit = try RecoveryKit.decode(recoveryKitData)
+        let replacementKey = try kit.makeKey()
+        let staging = try Self.stageBackup(from: sourcePath)
+        defer { try? FileManager.default.removeItem(at: staging.deletingLastPathComponent()) }
+
+        try await Self.validateBackup(
+            at: staging.path,
+            key: replacementKey,
+            expectedVaultID: kit.vaultID,
+            expectedKeyID: kit.keyID
+        )
+
+        let previousAccessState = accessState
+        let previousMetadata = try metadata()
+        let previousKey: SymmetricKey?
+        if let previousMetadata {
+            do {
+                previousKey = try await keyStore.load(
+                    vaultID: previousMetadata.vaultID,
+                    keyID: previousMetadata.activeKeyID
+                )
+            } catch VaultKeyStoreError.missingKey {
+                previousKey = nil
+            }
+        } else {
+            previousKey = nil
+        }
+        let safetyURL = staging.deletingLastPathComponent().appendingPathComponent("active-safety.sqlite")
+        try connection.snapshot(to: safetyURL.path)
+
+        let hasSameStoredKey = previousMetadata?.vaultID == kit.vaultID &&
+            previousMetadata?.activeKeyID == kit.keyID && previousKey != nil
+        var installedReplacement = false
+        if !hasSameStoredKey {
+            try await keyStore.install(replacementKey, vaultID: kit.vaultID, keyID: kit.keyID)
+            installedReplacement = true
+        }
+
+        do {
+            _ = keySession.lock()
+            accessState = .locked
+            try connection.replaceContents(from: staging.path)
+            let generation = keySession.unlock(with: replacementKey)
+            accessState = .unlocked(generation)
+            _ = try calendars()
+            _ = try events()
+        } catch {
+            try? connection.replaceContents(from: safetyURL.path)
+            _ = keySession.lock()
+            if let previousKey {
+                let generation = keySession.unlock(with: previousKey)
+                accessState = .unlocked(generation)
+            } else {
+                switch previousAccessState {
+                case .recoveryRequired: accessState = .recoveryRequired
+                case .corrupt: accessState = .corrupt
+                case .notCreated: accessState = .notCreated
+                default: accessState = .locked
+                }
+            }
+            if installedReplacement {
+                try? await keyStore.delete(vaultID: kit.vaultID, keyID: kit.keyID)
+            }
+            throw SQLiteVaultError.restoreFailed
+        }
+
+        if let previousMetadata,
+           previousMetadata.vaultID != kit.vaultID || previousMetadata.activeKeyID != kit.keyID {
+            try? await keyStore.delete(vaultID: previousMetadata.vaultID, keyID: previousMetadata.activeKeyID)
+        }
+    }
+
+    private static func validateBackup(
+        at path: String,
+        key: SymmetricKey,
+        expectedVaultID: UUID,
+        expectedKeyID: UUID
+    ) async throws {
+        let validator = try SQLiteVaultDatabase(
+            path: path,
+            keyStore: FixedVaultKeyStore(
+                vaultID: expectedVaultID,
+                keyID: expectedKeyID,
+                key: key
+            )
+        )
+        try await validator.unlockVault()
+        guard let metadata = try await validator.metadata(),
+              metadata.vaultID == expectedVaultID,
+              metadata.activeKeyID == expectedKeyID else {
+            throw RecoveryKitError.vaultMismatch
+        }
+        _ = try await validator.calendars()
+        _ = try await validator.events()
+        await validator.lockVault()
+    }
+
+    private static func stageBackup(from sourcePath: String) throws -> URL {
+        var info = stat()
+        guard lstat(sourcePath, &info) == 0,
+              info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
+              info.st_uid == getuid(),
+              info.st_size > 0,
+              info.st_size <= 1_073_741_824 else {
+            throw SQLiteVaultError.unsafeSnapshotDestination
+        }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Kansolendar-Restore-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        let destination = directory.appendingPathComponent("candidate.sqlite")
+        do {
+            try FileManager.default.copyItem(atPath: sourcePath, toPath: destination.path)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            return destination
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
     }
 
     func exportRecoveryKit(to path: String) async throws {
@@ -326,6 +460,50 @@ internal actor SQLiteVaultDatabase {
             try deleteExceptions(eventID: event.id)
             for (exceptionID, exceptionEnvelope) in encryptedExceptions {
                 try insertException(id: exceptionID, eventID: event.id, envelope: exceptionEnvelope)
+            }
+            try connection.execute("COMMIT")
+        } catch {
+            try? connection.execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    func importEvents(_ importedEvents: [Event], into calendarID: UUID) throws {
+        let generation = try unlockedGeneration()
+        guard try calendarRecords().contains(where: { $0.id == calendarID }),
+              importedEvents.allSatisfy({ $0.calendarID == calendarID }) else {
+            throw VaultStorageError.corruptVault
+        }
+        let existingUIDs = Set(try events().filter { $0.event.calendarID == calendarID }.map(\.event.uid))
+        let importedUIDs = importedEvents.map(\.uid)
+        guard existingUIDs.isDisjoint(with: importedUIDs),
+              Set(importedUIDs).count == importedUIDs.count else {
+            throw VaultStorageError.duplicateUID
+        }
+        let vaultID = try currentVaultID()
+        let keyID = try currentKeyID()
+        let encrypted = try importedEvents.map { event -> (UUID, UUID, Data) in
+            let context = PayloadContext(
+                vaultID: vaultID,
+                keyID: keyID,
+                recordKind: .event,
+                recordID: event.id,
+                parentID: calendarID
+            )
+            return (
+                event.id,
+                calendarID,
+                try keySession.seal(
+                    VaultPayloadCodec.encode(event, recurrence: nil),
+                    context: context,
+                    expectedGeneration: generation
+                )
+            )
+        }
+        try connection.execute("BEGIN IMMEDIATE")
+        do {
+            for (id, parentID, envelope) in encrypted {
+                try saveEvent(id: id, calendarID: parentID, envelope: envelope)
             }
             try connection.execute("COMMIT")
         } catch {
@@ -947,6 +1125,27 @@ private final class SQLiteConnection {
             throw SQLiteVaultError.filesystemFailure(errno)
         }
         completed = true
+    }
+
+    func replaceContents(from sourcePath: String) throws {
+        let source = try SQLiteConnection(path: sourcePath)
+        try source.configure()
+        guard try source.pragmaText("PRAGMA integrity_check") == "ok",
+              try !source.hasRows("PRAGMA foreign_key_check") else {
+            throw SQLiteVaultError.integrityFailure
+        }
+        guard let backup = sqlite3_backup_init(handle, "main", source.handle, "main") else {
+            throw failure(sqlite3_errcode(handle))
+        }
+        let stepStatus = sqlite3_backup_step(backup, -1)
+        let finishStatus = sqlite3_backup_finish(backup)
+        guard stepStatus == SQLITE_DONE, finishStatus == SQLITE_OK else {
+            throw SQLiteVaultError.restoreFailed
+        }
+        guard try pragmaText("PRAGMA integrity_check") == "ok",
+              try !hasRows("PRAGMA foreign_key_check") else {
+            throw SQLiteVaultError.integrityFailure
+        }
     }
 
     func execute(_ sql: String) throws {

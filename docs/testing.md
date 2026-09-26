@@ -2,7 +2,7 @@
 
 Esta fase no crea tests de implementación. Aquí se define el contrato de verificación futuro. No hay resultados de tests de app que reportar todavía.
 
-Alcance revisado el 2026-09-25: Apple silicon exclusivamente e importación .ics fuera del MVP. Los escenarios de importador se conservan marcados como futuros; no crear parser ni tests de implementación de esa función ahora. Exportación y entrada de backups/recuperación sí se verifican para el MVP.
+Alcance revisado el 2026-09-26: Apple silicon exclusivamente; backup/recuperación e intercambio `.ics` DATE/UTC forman parte del MVP. Compatibilidad amplia con zonas, recurrencias e invitaciones continúa fuera de alcance.
 
 Swift Testing para dominio, codecs, repositorios y pruebas parametrizadas; XCTest/XCUITest para UI y las integraciones que requieran su infraestructura. No mezclar APIs de ambos frameworks dentro del mismo test. Host firmado para políticas macOS reales. [Apple: Swift Testing](https://developer.apple.com/documentation/testing), [XCTest](https://developer.apple.com/documentation/xctest).
 
@@ -29,8 +29,8 @@ Ejecutar lógica en paquete local; usar xcodebuild en integración; las pruebas 
 | Bloqueo T01/T10/T11 | Manual, inactividad, suspensión, sesión, panel/auth, exportación/restauración en curso | Ocultación inmediata, tareas/generación invalidadas, secretos no accesibles por API tras cierre |
 | Backup/restore T06/T28 | DB sola, kit correcto/erróneo, otro Mac, corrupta, versión futura, interrupciones | Solo restaura pareja válida; original conservado ante fallo; kit nunca dentro de copia |
 | Exportador .ics | Fixtures canónicas, Unicode/plegado, UID, fechas/DST, conversiones, límite/cancelación, destino fallido | Salida semánticamente correcta; pérdidas explícitas; sin parser de producción para probarla |
-| Parser T26 — solo futuro | Byte fuzz, UTF-8, nesting, líneas gigantes, quotes, escapes, URLs, attachments, loops RRULE | Se exigirá si se autoriza importación; no gate del MVP |
-| UI | Crear/editar/borrar, zona/all-day, cancelar instancia, bloquear, error de disco, selección de exportación, recovery | Flujos accesibles por teclado y VoiceOver; no comando/asociación/drag-in de importación |
+| Parser T26 | UTF-8, líneas gigantes, escapes, URLs, attachments, propiedades no soportadas, duplicados | Rechazo acotado y atómico; fuzzing amplio y perfiles TZID/RRULE siguen como ampliación |
+| UI | Crear/editar/borrar, zona/all-day, bloquear, error de disco, backup/restore, export/import | Flujos accesibles por teclado y VoiceOver; importación solo mediante selector explícito |
 
 **Cobertura ya implementada:** el paquete prueba migración inicial/repetida y rollback, rechazo de versión futura, metadata, envelopes opacos, foreign keys restrict/cascade, CRUD de eventos, límites de tamaño, integridad y una escritura concurrente serializada. También escanea el archivo temporal por un sentinel plaintext. No incluye todavía reopen con repositorios, concurrencia de transacciones multioperación ni prueba real de ACL Keychain; esos gates siguen pendientes.
 

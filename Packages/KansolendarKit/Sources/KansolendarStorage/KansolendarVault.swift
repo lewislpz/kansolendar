@@ -138,9 +138,45 @@ public actor KansolendarVault {
         }
     }
 
+    public func exportCalendar(id: UUID, to url: URL) async throws {
+        do {
+            let selected = try await storage.events().filter { $0.event.calendarID == id }
+            guard selected.allSatisfy({ $0.recurrence == nil && $0.cancellations.isEmpty }) else {
+                throw ICalendarCodecError.unsupported
+            }
+            try PrivateFileWriter.write(try ICalendarCodec.encode(events: selected.map(\.event)), to: url.path)
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
+    @discardableResult
+    public func importCalendarEvents(from url: URL, into calendarID: UUID) async throws -> Int {
+        do {
+            let data = try PrivateFileReader.read(url.path, maximumBytes: ICalendarCodec.maximumBytes)
+            let imported = try ICalendarCodec.decode(data, calendarID: calendarID)
+            try await storage.importEvents(imported, into: calendarID)
+            return imported.count
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
     public func createBackup(at url: URL) async throws {
         do {
             try await storage.createSnapshot(at: url.path)
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
+    public func restoreBackup(at backupURL: URL, recoveryKitURL: URL) async throws {
+        do {
+            let kitData = try PrivateFileReader.read(
+                recoveryKitURL.path,
+                maximumBytes: RecoveryKit.maximumEncodedSize
+            )
+            try await storage.restoreBackup(from: backupURL.path, recoveryKitData: kitData)
         } catch {
             throw Self.map(error)
         }
@@ -209,6 +245,12 @@ public actor KansolendarVault {
              SQLiteVaultError.unsafeSnapshotDestination,
              RecoveryKitError.destinationExists:
             .conflict
+        case SQLiteVaultError.restoreFailed,
+             RecoveryKitError.malformed,
+             RecoveryKitError.unsupportedVersion,
+             RecoveryKitError.invalidKeyMaterial,
+             RecoveryKitError.vaultMismatch:
+            .corruptVault
         case VaultStorageError.duplicateUID:
             .duplicateUID
         case VaultStorageError.timeZoneRulesChanged, VaultPayloadCodecError.timeZoneRulesChanged:
@@ -221,6 +263,14 @@ public actor KansolendarVault {
             .queryLimitExceeded
         case is DomainValidationError, VaultPayloadCodecError.invalidPayload:
             .invalidInput
+        case ICalendarCodecError.malformed,
+             ICalendarCodecError.unsupported,
+             ICalendarCodecError.limitExceeded:
+            .invalidInput
+        case PrivateFileError.destinationExists:
+            .conflict
+        case is PrivateFileError:
+            .storageUnavailable
         default:
             .storageUnavailable
         }
