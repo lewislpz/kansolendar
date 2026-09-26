@@ -5,6 +5,7 @@ import SwiftUI
 
 struct CalendarWorkspaceView: View {
     @Bindable var model: VaultViewModel
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system.rawValue
     @State private var selectedCalendarID: UUID?
     @State private var editorEvent: Event?
     @State private var isPresentingEventEditor = false
@@ -98,6 +99,16 @@ struct CalendarWorkspaceView: View {
                     }
                 }
                 .disabled(model.isExporting)
+
+                Menu("Apariencia", systemImage: selectedAppearance.systemImage) {
+                    Picker("Apariencia", selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { option in
+                            Label(option.localizedName, systemImage: option.systemImage)
+                                .tag(option.rawValue)
+                        }
+                    }
+                }
+                .accessibilityLabel("Cambiar apariencia")
             }
         }
         .task { await model.loadContent() }
@@ -205,6 +216,10 @@ struct CalendarWorkspaceView: View {
             set: { if !$0 { calendarPendingDeletion = nil } }
         )
     }
+
+    private var selectedAppearance: AppAppearance {
+        AppAppearance(rawValue: appearance) ?? .system
+    }
 }
 
 private struct CalendarEditorSheet: View {
@@ -215,22 +230,60 @@ private struct CalendarEditorSheet: View {
     @State private var isSaving = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Nuevo calendario")
-                .font(.title2.bold())
-            TextField("Nombre", text: $name)
-                .textFieldStyle(.roundedBorder)
-            Picker("Color", selection: $color) {
-                ForEach(CalendarColor.allCases, id: \.self) { option in
-                    Label {
-                        Text(option.localizedName)
-                    } icon: {
-                        option.swatchImage
-                            .accessibilityHidden(true)
+        VStack(spacing: 0) {
+            EditorSheetHeader(
+                title: "Nuevo calendario",
+                subtitle: "Organiza tus eventos en un espacio privado y reconocible.",
+                systemImage: "calendar.badge.plus",
+                tint: color.swiftUIColor
+            )
+
+            Divider()
+
+            VStack(spacing: 16) {
+                EditorSection(title: "Identidad", systemImage: "textformat") {
+                    EditorField("Nombre", hint: "Por ejemplo: Personal, Trabajo o Viajes") {
+                        TextField("Nombre del calendario", text: $name)
+                            .textFieldStyle(.roundedBorder)
                     }
-                        .tag(option)
+                }
+
+                EditorSection(title: "Color", systemImage: "paintpalette") {
+                    Picker("Color del calendario", selection: $color) {
+                        ForEach(CalendarColor.allCases, id: \.self) { option in
+                            Label {
+                                Text(option.localizedName)
+                            } icon: {
+                                option.swatchImage
+                                    .accessibilityHidden(true)
+                            }
+                            .tag(option)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(color.swiftUIColor)
+                            .frame(width: 12, height: 12)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(calendarPreviewName)
+                                .font(.headline)
+                            Text("Vista previa en la barra lateral")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 9))
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .padding(22)
+
+            Divider()
+
             HStack {
                 Spacer()
                 Button("Cancelar", role: .cancel) { dismiss() }
@@ -244,9 +297,17 @@ private struct CalendarEditorSheet: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .background(.bar)
         }
-        .padding(24)
-        .frame(width: 380)
+        .frame(width: 460)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var calendarPreviewName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Nombre del calendario" : trimmed
     }
 }
 
@@ -284,25 +345,85 @@ private struct EventEditorSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(event == nil ? "Nuevo evento" : "Editar evento")
-                .font(.title2.bold())
+        VStack(spacing: 0) {
+            EditorSheetHeader(
+                title: event == nil ? "Nuevo evento" : "Editar evento",
+                subtitle: event == nil ? "Añade una cita a tu calendario privado." : "Actualiza los detalles de esta cita.",
+                systemImage: event == nil ? "calendar.badge.plus" : "calendar.badge.clock",
+                tint: selectedCalendar?.color.swiftUIColor ?? .cyan
+            )
 
-            Form {
-                TextField("Título", text: $title)
-                Picker("Calendario", selection: $calendarID) {
-                    ForEach(model.calendars) { calendar in
-                        Text(calendar.name).tag(calendar.id)
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    EditorSection(title: "Detalles", systemImage: "text.alignleft") {
+                        EditorField("Título", hint: "Describe el evento de forma breve") {
+                            TextField("Título del evento", text: $title)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        EditorField("Calendario") {
+                            Picker("Calendario", selection: $calendarID) {
+                                ForEach(model.calendars) { calendar in
+                                    Label {
+                                        Text(calendar.name)
+                                    } icon: {
+                                        calendar.color.swatchImage
+                                            .accessibilityHidden(true)
+                                    }
+                                    .tag(calendar.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .disabled(event != nil)
+                        }
+                    }
+
+                    EditorSection(title: "Horario", systemImage: "clock") {
+                        Toggle("Evento de todo el día", isOn: $isAllDay)
+
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+                            GridRow {
+                                Text("Inicio")
+                                    .foregroundStyle(.secondary)
+                                DatePicker(
+                                    "Inicio",
+                                    selection: $start,
+                                    displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
+                                )
+                                .labelsHidden()
+                            }
+                            GridRow {
+                                Text("Fin")
+                                    .foregroundStyle(.secondary)
+                                DatePicker(
+                                    "Fin",
+                                    selection: $end,
+                                    in: start...,
+                                    displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
+                                )
+                                .labelsHidden()
+                            }
+                        }
+                    }
+
+                    EditorSection(title: "Información opcional", systemImage: "info.circle") {
+                        EditorField("Ubicación") {
+                            TextField("Añadir ubicación", text: $location)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        EditorField("Notas") {
+                            TextField("Añadir notas", text: $notes, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(3...6)
+                        }
                     }
                 }
-                .disabled(event != nil)
-                Toggle("Todo el día", isOn: $isAllDay)
-                DatePicker("Inicio", selection: $start, displayedComponents: isAllDay ? .date : [.date, .hourAndMinute])
-                DatePicker("Fin", selection: $end, in: start..., displayedComponents: isAllDay ? .date : [.date, .hourAndMinute])
-                TextField("Ubicación", text: $location)
-                TextField("Notas", text: $notes, axis: .vertical)
-                    .lineLimit(3...8)
+                .padding(22)
             }
+
+            Divider()
 
             HStack {
                 Spacer()
@@ -326,14 +447,95 @@ private struct EventEditorSheet: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start || isSaving)
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .background(.bar)
         }
-        .padding(24)
-        .frame(width: 500)
+        .frame(width: 560, height: 620)
         .onChange(of: isAllDay) { _, enabled in
             guard enabled, Calendar.autoupdatingCurrent.isDate(start, inSameDayAs: end),
                   let nextDay = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: start) else { return }
             end = nextDay
         }
+    }
+
+    private var selectedCalendar: LocalCalendar? {
+        model.calendars.first { $0.id == calendarID }
+    }
+}
+
+private struct EditorSheetHeader: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 42, height: 42)
+                .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.title2.weight(.semibold))
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
+    }
+}
+
+private struct EditorSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(4)
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+                .foregroundStyle(.primary)
+        }
+    }
+}
+
+private struct EditorField<Content: View>: View {
+    let label: String
+    let hint: String?
+    @ViewBuilder let content: Content
+
+    init(_ label: String, hint: String? = nil, @ViewBuilder content: () -> Content) {
+        self.label = label
+        self.hint = hint
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+            content
+            if let hint {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
