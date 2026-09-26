@@ -10,6 +10,7 @@ struct CalendarWorkspaceView: View {
     @State private var isPresentingCalendarEditor = false
     @State private var eventPendingDeletion: Event?
     @State private var searchText = ""
+    @State private var isConfirmingRecoveryExport = false
 
     private var visibleEvents: [VaultEvent] {
         let calendarEvents = selectedCalendarID.map { calendarID in
@@ -67,6 +68,17 @@ struct CalendarWorkspaceView: View {
                     model.lock()
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
+
+                Menu("Exportar", systemImage: "square.and.arrow.up") {
+                    Button("Backup cifrado…", systemImage: "externaldrive") {
+                        guard let url = ExportPanel.chooseBackupDestination() else { return }
+                        Task { await model.createBackup(at: url) }
+                    }
+                    Button("Kit de recuperación…", systemImage: "key") {
+                        isConfirmingRecoveryExport = true
+                    }
+                }
+                .disabled(model.isExporting)
             }
         }
         .task { await model.loadContent() }
@@ -87,6 +99,19 @@ struct CalendarWorkspaceView: View {
             }
         } message: { event in
             Text("“\(event.title)” se eliminará de esta bóveda.")
+        }
+        .confirmationDialog(
+            "El kit permite descifrar cualquier copia de esta bóveda",
+            isPresented: $isConfirmingRecoveryExport,
+            titleVisibility: .visible
+        ) {
+            Button("Elegir ubicación…") {
+                guard let url = ExportPanel.chooseRecoveryKitDestination() else { return }
+                Task { await model.exportRecoveryKit(at: url) }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Guárdalo separado del backup. Cualquier persona con ambos archivos podrá leer el calendario.")
         }
     }
 

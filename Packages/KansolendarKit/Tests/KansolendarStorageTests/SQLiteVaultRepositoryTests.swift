@@ -235,6 +235,69 @@ struct SQLiteVaultRepositoryTests {
         #expect((databaseAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
     }
 
+    @Test("online snapshot preserves encrypted vault data and never overwrites a destination")
+    func onlineSnapshotRoundTrip() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sourceURL = root.appendingPathComponent("source.sqlite")
+        let snapshotURL = root.appendingPathComponent("snapshot.kansobackup")
+        let keyStore = FixtureVaultKeyStore()
+        let source = try SQLiteVaultDatabase(path: sourceURL.path, keyStore: keyStore)
+        _ = try await source.createVault()
+        let calendar = try LocalCalendar(name: "Snapshot private", defaultTimeZone: TimeZoneID("UTC"))
+        try await source.saveCalendar(calendar)
+        let event = try makeEvent(calendarID: calendar.id, uid: "snapshot-event", title: "Encrypted snapshot")
+        try await source.saveEvent(event)
+
+        try await source.createSnapshot(at: snapshotURL.path)
+        let attributes = try FileManager.default.attributesOfItem(atPath: snapshotURL.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        let snapshotBytes = try Data(contentsOf: snapshotURL)
+        #expect(snapshotBytes.range(of: Data("Snapshot private".utf8)) == nil)
+        #expect(snapshotBytes.range(of: Data("Encrypted snapshot".utf8)) == nil)
+
+        let restored = try SQLiteVaultDatabase(path: snapshotURL.path, keyStore: keyStore)
+        try await restored.unlockVault()
+        #expect(try await restored.calendars() == [calendar])
+        #expect(try await restored.events() == [VaultEvent(event: event, recurrence: nil)])
+
+        do {
+            try await source.createSnapshot(at: snapshotURL.path)
+            Issue.record("Snapshot must not overwrite an existing destination")
+        } catch let error as SQLiteVaultError {
+            #expect(error == .snapshotDestinationExists)
+        }
+    }
+
+    @Test("recovery export reauthenticates and writes a matching private kit")
+    func recoveryKitExport() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let keyStore = FixtureVaultKeyStore()
+        let database = try SQLiteVaultDatabase(path: ":memory:", keyStore: keyStore)
+        let vaultID = try await database.createVault()
+        let metadata = try #require(try await database.metadata())
+        let destination = root.appendingPathComponent("recovery.txt")
+
+        try await database.exportRecoveryKit(to: destination.path)
+        let kit = try RecoveryKit.decode(Data(contentsOf: destination))
+        #expect(kit.vaultID == vaultID)
+        #expect(kit.keyID == metadata.activeKeyID)
+        let storedKey = try await keyStore.load(vaultID: vaultID, keyID: metadata.activeKeyID)
+        #expect(try kit.makeKey().withUnsafeBytes { Data($0) } == storedKey.withUnsafeBytes { Data($0) })
+
+        do {
+            try await database.exportRecoveryKit(to: destination.path)
+            Issue.record("Recovery export must not overwrite an existing file")
+        } catch let error as RecoveryKitError {
+            #expect(error == .destinationExists)
+        }
+    }
+
     @Test("application support location rejects a symlinked vault directory")
     func rejectsSymlinkedVaultDirectory() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

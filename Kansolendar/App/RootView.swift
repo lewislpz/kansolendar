@@ -117,6 +117,7 @@ final class VaultViewModel {
     private(set) var calendars: [LocalCalendar] = []
     private(set) var events: [VaultEvent] = []
     private(set) var isLoadingContent = false
+    private(set) var isExporting = false
     var message: String?
 
     init() {
@@ -287,6 +288,42 @@ final class VaultViewModel {
             message = "No se pudo eliminar el evento."
         }
         return false
+    }
+
+    func createBackup(at url: URL) async {
+        guard let vault else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let scopedAccess = url.startAccessingSecurityScopedResource()
+        defer { if scopedAccess { url.stopAccessingSecurityScopedResource() } }
+        do {
+            try await vault.createBackup(at: url)
+            message = "Backup cifrado guardado. Conserva el kit de recuperación por separado."
+        } catch let error as VaultError {
+            message = error == .conflict
+                ? "Ese archivo ya existe. Elige un nombre nuevo para no sobrescribir un backup anterior."
+                : Self.message(for: error)
+        } catch {
+            message = "No se pudo crear el backup cifrado."
+        }
+    }
+
+    func exportRecoveryKit(at url: URL) async {
+        guard let vault else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let scopedAccess = url.startAccessingSecurityScopedResource()
+        defer { if scopedAccess { url.stopAccessingSecurityScopedResource() } }
+        do {
+            try await vault.exportRecoveryKit(at: url)
+            message = "Kit de recuperación guardado. No lo guardes junto al backup."
+        } catch let error as VaultError {
+            message = error == .conflict
+                ? "Ese archivo ya existe. Elige un nombre nuevo para no sobrescribirlo."
+                : Self.message(for: error)
+        } catch {
+            message = "No se pudo exportar el kit de recuperación."
+        }
     }
 
     private func clearPrivateContent() {

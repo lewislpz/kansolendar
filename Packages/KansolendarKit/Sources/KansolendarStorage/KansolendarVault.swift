@@ -138,6 +138,24 @@ public actor KansolendarVault {
         }
     }
 
+    public func createBackup(at url: URL) async throws {
+        do {
+            try await storage.createSnapshot(at: url.path)
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
+    /// Re-authenticates through Keychain and writes the recovery secret directly to a new file.
+    /// The app layer selects the destination but never receives the raw key bytes.
+    public func exportRecoveryKit(at url: URL) async throws {
+        do {
+            try await storage.exportRecoveryKit(to: url.path)
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
     private static func map(_ state: VaultAccessState) -> VaultState {
         switch state {
         case .notCreated: .notCreated
@@ -186,6 +204,10 @@ public actor KansolendarVault {
              VaultPayloadCodecError.unsupportedVersion:
             .unsupportedFormat
         case SQLiteVaultError.constraintViolation:
+            .conflict
+        case SQLiteVaultError.snapshotDestinationExists,
+             SQLiteVaultError.unsafeSnapshotDestination,
+             RecoveryKitError.destinationExists:
             .conflict
         case VaultStorageError.duplicateUID:
             .duplicateUID

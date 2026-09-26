@@ -17,6 +17,8 @@ internal enum SQLiteVaultError: Error, Equatable, Sendable {
     case missingRecord
     case integrityFailure
     case foreignKeyFailure
+    case snapshotDestinationExists
+    case unsafeSnapshotDestination
 }
 
 internal enum VaultAccessState: Sendable, Equatable {
@@ -222,6 +224,36 @@ internal actor SQLiteVaultDatabase {
         default:
             accessState = .locked
         }
+    }
+
+    func createSnapshot(at path: String) throws {
+        _ = try unlockedGeneration()
+        try connection.snapshot(to: path)
+    }
+
+    func exportRecoveryKit(to path: String) async throws {
+        let expectedGeneration = try unlockedGeneration()
+        guard let metadata = try metadata() else { throw VaultStorageError.vaultNotCreated }
+        let key = try await keyStore.load(vaultID: metadata.vaultID, keyID: metadata.activeKeyID)
+        guard try unlockedGeneration() == expectedGeneration else {
+            throw VaultStorageError.unlockSuperseded
+        }
+
+        let context = PayloadContext(
+            vaultID: metadata.vaultID,
+            keyID: metadata.activeKeyID,
+            recordKind: .control,
+            recordID: metadata.vaultID
+        )
+        let controlBytes = try PayloadEnvelope.open(metadata.controlEnvelope, using: key, context: context)
+        let control = try JSONDecoder().decode(VaultControlPayload.self, from: controlBytes)
+        guard control.version == 1,
+              control.vaultID == metadata.vaultID,
+              control.keyID == metadata.activeKeyID else {
+            throw VaultStorageError.corruptVault
+        }
+        let kit = try RecoveryKit(vaultID: metadata.vaultID, keyID: metadata.activeKeyID, key: key)
+        try RecoveryKitFileWriter.write(try kit.encoded(), to: path)
     }
 
     func saveCalendar(_ calendar: LocalCalendar) throws {
@@ -801,10 +833,11 @@ internal actor SQLiteVaultDatabase {
 
 private final class SQLiteConnection {
     let handle: OpaquePointer
+    private let path: String
 
-    init(path: String) throws {
+    init(path: String, requireNewFile: Bool = false) throws {
         if path != ":memory:" {
-            try Self.preparePrivateDatabaseFile(path: path)
+            try Self.preparePrivateDatabaseFile(path: path, requireNewFile: requireNewFile)
         }
         var database: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE
@@ -814,15 +847,17 @@ private final class SQLiteConnection {
             throw SQLiteVaultError.openFailed(status)
         }
         handle = database
+        self.path = path
     }
 
-    private static func preparePrivateDatabaseFile(path: String) throws {
+    private static func preparePrivateDatabaseFile(path: String, requireNewFile: Bool) throws {
         let createFlags = O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC
         let descriptor = path.withCString { open($0, createFlags, mode_t(S_IRUSR | S_IWUSR)) }
         if descriptor >= 0 {
             try validateAndCloseFileDescriptor(descriptor)
             return
         }
+        if requireNewFile, errno == EEXIST { throw SQLiteVaultError.snapshotDestinationExists }
         guard errno == EEXIST else { throw SQLiteVaultError.filesystemFailure(errno) }
 
         let existingDescriptor = path.withCString { open($0, O_RDWR | O_NOFOLLOW | O_CLOEXEC) }
@@ -865,6 +900,39 @@ private final class SQLiteConnection {
         try execute("PRAGMA trusted_schema = OFF")
     }
 
+    func snapshot(to destinationPath: String) throws {
+        guard destinationPath != ":memory:",
+              URL(fileURLWithPath: destinationPath).standardizedFileURL.path
+                != URL(fileURLWithPath: path).standardizedFileURL.path else {
+            throw SQLiteVaultError.unsafeSnapshotDestination
+        }
+
+        var completed = false
+        defer {
+            if !completed { try? FileManager.default.removeItem(atPath: destinationPath) }
+        }
+        let destination = try SQLiteConnection(path: destinationPath, requireNewFile: true)
+        try destination.configure()
+
+        guard let backup = sqlite3_backup_init(destination.handle, "main", handle, "main") else {
+            throw destination.failure(sqlite3_errcode(destination.handle))
+        }
+        let stepStatus = sqlite3_backup_step(backup, -1)
+        let finishStatus = sqlite3_backup_finish(backup)
+        guard stepStatus == SQLITE_DONE else { throw failure(stepStatus) }
+        guard finishStatus == SQLITE_OK else { throw destination.failure(finishStatus) }
+        guard try destination.pragmaText("PRAGMA integrity_check") == "ok" else {
+            throw SQLiteVaultError.integrityFailure
+        }
+        guard try !destination.hasRows("PRAGMA foreign_key_check") else {
+            throw SQLiteVaultError.foreignKeyFailure
+        }
+        guard fsyncFile(at: destinationPath) else {
+            throw SQLiteVaultError.filesystemFailure(errno)
+        }
+        completed = true
+    }
+
     func execute(_ sql: String) throws {
         let status = sqlite3_exec(handle, sql, nil, nil, nil)
         guard status == SQLITE_OK else { throw failure(status) }
@@ -887,6 +955,34 @@ private final class SQLiteConnection {
         let status = sqlite3_step(statement)
         guard status == SQLITE_ROW else { throw failure(status) }
         return sqlite3_column_int64(statement, 0)
+    }
+
+    func pragmaText(_ sql: String) throws -> String {
+        let statement = try prepare(sql)
+        defer { sqlite3_finalize(statement) }
+        let status = sqlite3_step(statement)
+        guard status == SQLITE_ROW, let value = sqlite3_column_text(statement, 0) else {
+            throw failure(status)
+        }
+        return String(cString: value)
+    }
+
+    func hasRows(_ sql: String) throws -> Bool {
+        let statement = try prepare(sql)
+        defer { sqlite3_finalize(statement) }
+        let status = sqlite3_step(statement)
+        switch status {
+        case SQLITE_ROW: return true
+        case SQLITE_DONE: return false
+        default: throw failure(status)
+        }
+    }
+
+    private func fsyncFile(at path: String) -> Bool {
+        let descriptor = path.withCString { open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) }
+        guard descriptor >= 0 else { return false }
+        defer { close(descriptor) }
+        return fsync(descriptor) == 0
     }
 
     func failure(_ status: Int32) -> SQLiteVaultError {
