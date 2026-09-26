@@ -15,6 +15,7 @@
 		0D0000000000000000000106 /* ExportPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000206 /* ExportPanel.swift */; };
 		0D0000000000000000000107 /* MonthCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000207 /* MonthCalendarView.swift */; };
 		0D0000000000000000000108 /* CalendarScaleViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000208 /* CalendarScaleViews.swift */; };
+		0D0000000000000000000109 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0D0000000000000000000209 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		0D0000000000000000000206 /* ExportPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPanel.swift; sourceTree = "<group>"; };
 		0D0000000000000000000207 /* MonthCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthCalendarView.swift; sourceTree = "<group>"; };
 		0D0000000000000000000208 /* CalendarScaleViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScaleViews.swift; sourceTree = "<group>"; };
+		0D0000000000000000000209 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				0D0000000000000000000403 /* App */,
+				0D0000000000000000000209 /* Assets.xcassets */,
 				0D0000000000000000000203 /* Kansolendar.entitlements */,
 			);
 			path = Kansolendar;
@@ -153,6 +156,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D0000000000000000000109 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,6 +299,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Kansolendar/Kansolendar.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -323,6 +328,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Kansolendar/Kansolendar.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
