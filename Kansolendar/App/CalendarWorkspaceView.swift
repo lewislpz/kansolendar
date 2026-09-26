@@ -6,6 +6,7 @@ import SwiftUI
 struct CalendarWorkspaceView: View {
     @Bindable var model: VaultViewModel
     @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system.rawValue
+    @AppStorage(AppAccent.storageKey) private var accent = AppAccent.cyan.rawValue
     @State private var selectedCalendarID: UUID?
     @State private var editorEvent: Event?
     @State private var isPresentingEventEditor = false
@@ -101,9 +102,16 @@ struct CalendarWorkspaceView: View {
                 .disabled(model.isExporting)
 
                 Menu("Apariencia", systemImage: selectedAppearance.systemImage) {
-                    Picker("Apariencia", selection: $appearance) {
+                    Picker("Modo", selection: $appearance) {
                         ForEach(AppAppearance.allCases) { option in
                             Label(option.localizedName, systemImage: option.systemImage)
+                                .tag(option.rawValue)
+                        }
+                    }
+                    Divider()
+                    Picker("Color de acento", selection: $accent) {
+                        ForEach(AppAccent.allCases) { option in
+                            Text(option.localizedName)
                                 .tag(option.rawValue)
                         }
                     }
@@ -350,7 +358,7 @@ private struct EventEditorSheet: View {
                 title: event == nil ? "Nuevo evento" : "Editar evento",
                 subtitle: event == nil ? "Añade una cita a tu calendario privado." : "Actualiza los detalles de esta cita.",
                 systemImage: event == nil ? "calendar.badge.plus" : "calendar.badge.clock",
-                tint: selectedCalendar?.color.swiftUIColor ?? .cyan
+                tint: selectedCalendar?.color.swiftUIColor ?? Color.accentColor
             )
 
             Divider()
