@@ -32,24 +32,6 @@ struct CalendarWorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedCalendarID) {
-                HStack(spacing: 10) {
-                    Image("KansolendarLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 34, height: 34)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("KANSOLENDAR")
-                            .font(.caption.monospaced().weight(.bold))
-                        Text("PRIVATE CALENDAR")
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 6)
-                .accessibilityElement(children: .combine)
-
                 Section {
                     ForEach(model.calendars) { calendar in
                         Label {
@@ -72,7 +54,6 @@ struct CalendarWorkspaceView: View {
                         .tracking(0.8)
                 }
             }
-            .navigationTitle("Kansolendar")
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 14) {
                     Button("New Calendar", systemImage: "plus") {
@@ -110,6 +91,22 @@ struct CalendarWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search by title")
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                HStack(spacing: 8) {
+                    Image("KansolendarLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .accessibilityHidden(true)
+                    Text("KANSOLENDAR")
+                        .font(.caption.monospaced().weight(.bold))
+                        .tracking(0.6)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Kansolendar")
+            }
+
             ToolbarItemGroup {
                 Button("New Event", systemImage: "plus") {
                     editorEvent = nil
