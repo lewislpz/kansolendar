@@ -450,6 +450,24 @@ private struct EventEditorSheet: View {
                     EditorSection(title: "Schedule", systemImage: "clock") {
                         Toggle("All-day event", isOn: $isAllDay)
 
+                        if !isAllDay {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("START TIME")
+                                    .font(.caption.monospaced().weight(.bold))
+                                    .foregroundStyle(.secondary)
+                                TimeWheelPicker(selection: $start, accessibilityLabel: "Start Time")
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("END TIME")
+                                    .font(.caption.monospaced().weight(.bold))
+                                    .foregroundStyle(.secondary)
+                                TimeWheelPicker(selection: $end, accessibilityLabel: "End Time")
+                            }
+                        }
+
+                        Divider()
+
                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
                             GridRow {
                                 Text("Start Date")
@@ -462,19 +480,6 @@ private struct EventEditorSheet: View {
                                 .datePickerStyle(.field)
                                 .labelsHidden()
                             }
-                            if !isAllDay {
-                                GridRow {
-                                    Text("Start Time")
-                                        .foregroundStyle(.secondary)
-                                    DatePicker(
-                                        "Start Time",
-                                        selection: $start,
-                                        displayedComponents: .hourAndMinute
-                                    )
-                                    .datePickerStyle(.stepperField)
-                                    .labelsHidden()
-                                }
-                            }
                             GridRow {
                                 Text("End Date")
                                     .foregroundStyle(.secondary)
@@ -486,20 +491,6 @@ private struct EventEditorSheet: View {
                                 )
                                 .datePickerStyle(.field)
                                 .labelsHidden()
-                            }
-                            if !isAllDay {
-                                GridRow {
-                                    Text("End Time")
-                                        .foregroundStyle(.secondary)
-                                    DatePicker(
-                                        "End Time",
-                                        selection: $end,
-                                        in: start...,
-                                        displayedComponents: .hourAndMinute
-                                    )
-                                    .datePickerStyle(.stepperField)
-                                    .labelsHidden()
-                                }
                             }
                         }
                     }
@@ -562,6 +553,94 @@ private struct EventEditorSheet: View {
         }
     }
 
+}
+
+private struct TimeWheelPicker: View {
+    @Environment(\.appAccentColor) private var accent
+    @Binding var selection: Date
+    let accessibilityLabel: String
+    @State private var hour: Int?
+    @State private var minute: Int?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TimeWheelColumn(values: Array(0..<24), selection: $hour, accent: accent)
+                .accessibilityLabel("\(accessibilityLabel) hour")
+            Text(":")
+                .font(.title.monospaced().weight(.bold))
+                .foregroundStyle(accent)
+            TimeWheelColumn(values: Array(0..<60), selection: $minute, accent: accent)
+                .accessibilityLabel("\(accessibilityLabel) minute")
+        }
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay {
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(accent.opacity(0.45), lineWidth: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear(perform: syncFromSelection)
+        .onChange(of: selection) { _, _ in syncFromSelection() }
+        .onChange(of: hour) { _, _ in updateSelection() }
+        .onChange(of: minute) { _, _ in updateSelection() }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func syncFromSelection() {
+        let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: selection)
+        hour = components.hour
+        minute = components.minute
+    }
+
+    private func updateSelection() {
+        guard let hour, let minute else { return }
+        selection = Calendar.autoupdatingCurrent.date(
+            bySettingHour: hour,
+            minute: minute,
+            second: 0,
+            of: selection
+        ) ?? selection
+    }
+}
+
+private struct TimeWheelColumn: View {
+    let values: [Int]
+    @Binding var selection: Int?
+    let accent: Color
+
+    var body: some View {
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 0) {
+                ForEach(values, id: \.self) { value in
+                    Button {
+                        withAnimation(.snappy(duration: 0.18)) { selection = value }
+                    } label: {
+                        Text(String(format: "%02d", value))
+                            .font(.title2.monospaced().weight(selection == value ? .bold : .regular))
+                            .foregroundStyle(selection == value ? accent : .secondary)
+                            .frame(width: 62, height: 34)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .id(value)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .contentMargins(.vertical, 37, for: .scrollContent)
+        .scrollPosition(id: $selection, anchor: .center)
+        .scrollTargetBehavior(.viewAligned)
+        .frame(width: 66, height: 108)
+        .overlay {
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(accent.opacity(0.28), lineWidth: 1)
+                .frame(height: 34)
+                .allowsHitTesting(false)
+        }
+        .clipped()
+    }
 }
 
 private struct EditorSheetHeader: View {
