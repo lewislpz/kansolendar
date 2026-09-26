@@ -14,7 +14,7 @@ struct RootView: View {
                 vaultGate
             }
         }
-        .frame(minWidth: 960, minHeight: 620)
+        .frame(minWidth: 1_100, minHeight: 700)
         .task { await model.refresh() }
     }
 
