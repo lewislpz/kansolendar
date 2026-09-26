@@ -86,8 +86,10 @@ struct CalendarWorkspaceView: View {
             .frame(minWidth: 210)
         } detail: {
             calendarSurface
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 760, minHeight: 500)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search by title")
         .toolbar {
             ToolbarItemGroup {

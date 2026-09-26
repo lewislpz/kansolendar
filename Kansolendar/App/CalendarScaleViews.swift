@@ -86,8 +86,10 @@ struct DayCalendarView: View {
                     }
                 }
                 .padding(20)
+                .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var periodHeader: some View {
@@ -138,18 +140,24 @@ struct WeekCalendarView: View {
                 onNext: { selectedDate = (try? selectedDate.adding(days: 7)) ?? selectedDate },
                 onCreate: canCreateEvent ? { onCreateEvent(selectedDate) } : nil
             )
-            ScrollView([.horizontal, .vertical]) {
-                HStack(alignment: .top, spacing: 0) {
-                    ForEach(dates, id: \.self) { date in
-                        weekColumn(date)
+            GeometryReader { proxy in
+                let columnWidth = max(156, (proxy.size.width - 32) / 7)
+                let columnHeight = max(430, proxy.size.height - 32)
+                ScrollView([.horizontal, .vertical]) {
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(dates, id: \.self) { date in
+                            weekColumn(date, width: columnWidth, height: columnHeight)
+                        }
                     }
+                    .padding(16)
+                    .frame(minWidth: proxy.size.width, minHeight: proxy.size.height, alignment: .topLeading)
                 }
-                .padding(16)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func weekColumn(_ date: CivilDate) -> some View {
+    private func weekColumn(_ date: CivilDate, width: CGFloat, height: CGFloat) -> some View {
         let dayEvents = indexed[date] ?? []
         let isSelected = date == selectedDate
         return VStack(alignment: .leading, spacing: 8) {
@@ -186,8 +194,8 @@ struct WeekCalendarView: View {
             Spacer(minLength: 80)
         }
         .padding(10)
-        .frame(width: 156)
-        .frame(minHeight: 430, alignment: .topLeading)
+        .frame(width: width)
+        .frame(minHeight: height, alignment: .topLeading)
         .background(isSelected ? accent.opacity(0.07) : Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .leading) {
             Rectangle().fill(isSelected ? accent : Color(nsColor: .separatorColor)).frame(width: 1)
@@ -246,8 +254,10 @@ struct YearCalendarView: View {
                     }
                 }
                 .padding(16)
+                .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func setYear(_ year: Int) {

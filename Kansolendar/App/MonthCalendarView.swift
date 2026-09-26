@@ -133,7 +133,7 @@ struct MonthCalendarView: View {
                 Spacer(minLength: 0)
             }
             .padding(7)
-            .frame(maxWidth: .infinity, minHeight: 92, maxHeight: 112, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
             .background(isSelected ? appAccentColor.opacity(0.09) : Color(nsColor: .controlBackgroundColor))
             .overlay {
                 Rectangle()
