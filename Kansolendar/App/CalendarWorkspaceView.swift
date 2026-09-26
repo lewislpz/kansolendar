@@ -452,25 +452,54 @@ private struct EventEditorSheet: View {
 
                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
                             GridRow {
-                                Text("Start")
+                                Text("Start Date")
                                     .foregroundStyle(.secondary)
                                 DatePicker(
-                                    "Start",
+                                    "Start Date",
                                     selection: $start,
-                                    displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
+                                    displayedComponents: .date
                                 )
+                                .datePickerStyle(.field)
                                 .labelsHidden()
                             }
+                            if !isAllDay {
+                                GridRow {
+                                    Text("Start Time")
+                                        .foregroundStyle(.secondary)
+                                    DatePicker(
+                                        "Start Time",
+                                        selection: $start,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .datePickerStyle(.stepperField)
+                                    .labelsHidden()
+                                }
+                            }
                             GridRow {
-                                Text("End")
+                                Text("End Date")
                                     .foregroundStyle(.secondary)
                                 DatePicker(
-                                    "End",
+                                    "End Date",
                                     selection: $end,
                                     in: start...,
-                                    displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
+                                    displayedComponents: .date
                                 )
+                                .datePickerStyle(.field)
                                 .labelsHidden()
+                            }
+                            if !isAllDay {
+                                GridRow {
+                                    Text("End Time")
+                                        .foregroundStyle(.secondary)
+                                    DatePicker(
+                                        "End Time",
+                                        selection: $end,
+                                        in: start...,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .datePickerStyle(.stepperField)
+                                    .labelsHidden()
+                                }
                             }
                         }
                     }
@@ -524,6 +553,12 @@ private struct EventEditorSheet: View {
             guard enabled, Calendar.autoupdatingCurrent.isDate(start, inSameDayAs: end),
                   let nextDay = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: start) else { return }
             end = nextDay
+        }
+        .onChange(of: start) { _, newStart in
+            guard end <= newStart else { return }
+            let component: Calendar.Component = isAllDay ? .day : .hour
+            end = Calendar.autoupdatingCurrent.date(byAdding: component, value: 1, to: newStart)
+                ?? newStart.addingTimeInterval(isAllDay ? 86_400 : 3_600)
         }
     }
 
