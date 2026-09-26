@@ -95,6 +95,7 @@ private struct AppThemeModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .tint(selectedAccent.color)
+            .environment(\.appAccentColor, selectedAccent.color)
             .onAppear(perform: applyAppearance)
             .onChange(of: appearance) { _, _ in applyAppearance() }
     }
@@ -105,6 +106,17 @@ private struct AppThemeModifier: ViewModifier {
 
     private func applyAppearance() {
         NSApp.appearance = (AppAppearance(rawValue: appearance) ?? .system).appKitAppearance
+    }
+}
+
+private struct AppAccentColorKey: EnvironmentKey {
+    static let defaultValue = Color.cyan
+}
+
+extension EnvironmentValues {
+    var appAccentColor: Color {
+        get { self[AppAccentColorKey.self] }
+        set { self[AppAccentColorKey.self] = newValue }
     }
 }
 

@@ -3,6 +3,7 @@ import KansolendarStorage
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     @State private var model = VaultViewModel()
 
     var body: some View {
@@ -20,7 +21,9 @@ struct RootView: View {
         VStack(spacing: 18) {
             Image(systemName: "calendar.badge.lock")
                 .font(.system(size: 38, weight: .light))
-                .foregroundStyle(.tint)
+                .foregroundStyle(appAccentColor)
+                .frame(width: 72, height: 72)
+                .background(appAccentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 18))
 
             Text(KansolendarBuildInfo.productName)
                 .font(.largeTitle.weight(.semibold))
@@ -37,6 +40,9 @@ struct RootView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 360)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(appAccentColor.opacity(0.07), in: Capsule())
                     .accessibilityIdentifier("vault-message")
             }
 
@@ -47,6 +53,7 @@ struct RootView: View {
         }
         .frame(minWidth: 520, minHeight: 360)
         .padding(32)
+        .background(appAccentColor.opacity(0.025))
     }
 
     @ViewBuilder
@@ -61,6 +68,7 @@ struct RootView: View {
                     model.createVault()
                 }
                 .controlSize(.large)
+                .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("create-vault")
                 Text("La clave se genera en este Mac. No necesitas crear una cuenta.")
                     .font(.caption)
@@ -70,6 +78,7 @@ struct RootView: View {
                     model.unlock()
                 }
                 .controlSize(.large)
+                .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("unlock-vault")
                 Text("macOS solicitará autenticación para usar la clave local.")
                     .font(.caption)
@@ -77,6 +86,7 @@ struct RootView: View {
             case .unlocked:
                 Label("Almacén privado desbloqueado", systemImage: "lock.open.fill")
                     .font(.headline)
+                    .foregroundStyle(appAccentColor)
                 Text("La agenda todavía está en construcción.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

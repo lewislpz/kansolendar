@@ -3,6 +3,7 @@ import KansolendarStorage
 import SwiftUI
 
 struct MonthCalendarView: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     let events: [VaultEvent]
     let calendars: [LocalCalendar]
     @Binding var displayedMonth: CalendarMonth
@@ -28,13 +29,18 @@ struct MonthCalendarView: View {
         VStack(spacing: 0) {
             monthHeader
             if !canCreateEvent {
-                Label("Crea un calendario en la barra lateral para empezar a añadir eventos.", systemImage: "info.circle")
+                Label {
+                    Text("Crea un calendario en la barra lateral para empezar a añadir eventos.")
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(appAccentColor)
+                }
                     .font(.callout)
-                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 9)
-                    .background(Color.accentColor.opacity(0.06))
+                    .background(appAccentColor.opacity(0.06))
             }
             weekdayHeader
             ScrollView {
@@ -69,10 +75,10 @@ struct MonthCalendarView: View {
 
             Label("BÓVEDA LOCAL", systemImage: "lock.fill")
                 .font(.caption2.monospaced().weight(.semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccentColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.09), in: Capsule())
+                .background(appAccentColor.opacity(0.09), in: Capsule())
                 .accessibilityLabel("Bóveda local desbloqueada")
 
             Button("Mes anterior", systemImage: "chevron.left") { moveMonth(by: -1) }
@@ -115,7 +121,7 @@ struct MonthCalendarView: View {
                         .font(.system(.callout, design: .monospaced, weight: isToday ? .bold : .medium))
                         .foregroundStyle(isToday ? Color.white : (day.isInDisplayedMonth ? Color.primary : Color.secondary.opacity(0.55)))
                         .frame(width: 25, height: 25)
-                        .background(isToday ? Color.accentColor : .clear, in: Circle())
+                        .background(isToday ? appAccentColor : .clear, in: Circle())
                     Spacer()
                     if !dayEvents.isEmpty {
                         Text("\(dayEvents.count)")
@@ -139,10 +145,10 @@ struct MonthCalendarView: View {
             }
             .padding(7)
             .frame(maxWidth: .infinity, minHeight: 92, maxHeight: 112, alignment: .topLeading)
-            .background(isSelected ? Color.accentColor.opacity(0.09) : Color(nsColor: .controlBackgroundColor))
+            .background(isSelected ? appAccentColor.opacity(0.09) : Color(nsColor: .controlBackgroundColor))
             .overlay {
                 Rectangle()
-                    .stroke(isSelected ? Color.accentColor : Color(nsColor: .separatorColor).opacity(0.45), lineWidth: isSelected ? 1.5 : 0.5)
+                    .stroke(isSelected ? appAccentColor : Color(nsColor: .separatorColor).opacity(0.45), lineWidth: isSelected ? 1.5 : 0.5)
             }
             .contentShape(Rectangle())
         }
@@ -172,21 +178,21 @@ struct MonthCalendarView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("AGENDA / \(shortDate(selectedDate).uppercased())")
                         .font(.caption.monospaced().weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccentColor)
                     Text(longDate(selectedDate))
                         .font(.title3.weight(.semibold))
                 }
                 Spacer()
                 Button("Nuevo evento", systemImage: "plus") { onCreateEvent(selectedDate) }
                     .buttonStyle(.borderedProminent)
-                    .tint(Color.accentColor)
+                    .tint(appAccentColor)
                     .disabled(!canCreateEvent)
             }
 
             if selectedEvents.isEmpty {
                 HStack(spacing: 10) {
                     Image(systemName: "waveform.path.ecg")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccentColor)
                     Text("Sin actividad programada para este día.")
                         .foregroundStyle(.secondary)
                 }
@@ -256,6 +262,7 @@ struct MonthCalendarView: View {
 }
 
 private struct EventChip: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     let placement: CalendarEventPlacement
     let calendar: LocalCalendar?
 
@@ -272,7 +279,7 @@ private struct EventChip: View {
     private var chip: some View {
         HStack(spacing: 4) {
             Capsule()
-                .fill(calendar?.color.swiftUIColor ?? Color.accentColor)
+                .fill(calendar?.color.swiftUIColor ?? appAccentColor)
                 .frame(width: 3)
             Text(placement.master.title)
                 .font(.caption2.weight(.medium))
@@ -282,11 +289,12 @@ private struct EventChip: View {
         .padding(.horizontal, 5)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background((calendar?.color.swiftUIColor ?? Color.accentColor).opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+        .background((calendar?.color.swiftUIColor ?? appAccentColor).opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
     }
 }
 
 private struct AgendaRow: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     let placement: CalendarEventPlacement
     let calendar: LocalCalendar?
     let onEdit: () -> Void
@@ -295,7 +303,7 @@ private struct AgendaRow: View {
     var body: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(calendar?.color.swiftUIColor ?? Color.accentColor)
+                .fill(calendar?.color.swiftUIColor ?? appAccentColor)
                 .frame(width: 4, height: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(placement.master.title).font(.headline)

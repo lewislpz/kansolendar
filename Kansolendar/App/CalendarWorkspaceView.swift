@@ -4,6 +4,7 @@ import KansolendarStorage
 import SwiftUI
 
 struct CalendarWorkspaceView: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     @Bindable var model: VaultViewModel
     @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system.rawValue
     @AppStorage(AppAccent.storageKey) private var accent = AppAccent.cyan.rawValue
@@ -30,7 +31,12 @@ struct CalendarWorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedCalendarID) {
-                Label("Todos los eventos", systemImage: "calendar")
+                Label {
+                    Text("Todos los eventos")
+                } icon: {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(appAccentColor)
+                }
                     .tag(nil as UUID?)
 
                 Section("Calendarios") {
@@ -58,6 +64,7 @@ struct CalendarWorkspaceView: View {
                         isPresentingCalendarEditor = true
                     }
                     .buttonStyle(.plain)
+                    .foregroundStyle(appAccentColor)
                     if let selectedCalendarID,
                        let calendar = model.calendars.first(where: { $0.id == selectedCalendarID }) {
                         Button("Eliminar calendario", systemImage: "trash", role: .destructive) {
@@ -204,6 +211,9 @@ struct CalendarWorkspaceView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
                         .background(.regularMaterial, in: Capsule())
+                        .overlay {
+                            Capsule().stroke(appAccentColor.opacity(0.45), lineWidth: 1)
+                        }
                         .padding()
                         .accessibilityIdentifier("workspace-message")
                 }
@@ -242,8 +252,7 @@ private struct CalendarEditorSheet: View {
             EditorSheetHeader(
                 title: "Nuevo calendario",
                 subtitle: "Organiza tus eventos en un espacio privado y reconocible.",
-                systemImage: "calendar.badge.plus",
-                tint: color.swiftUIColor
+                systemImage: "calendar.badge.plus"
             )
 
             Divider()
@@ -303,6 +312,7 @@ private struct CalendarEditorSheet: View {
                     }
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
             }
             .padding(.horizontal, 22)
@@ -357,8 +367,7 @@ private struct EventEditorSheet: View {
             EditorSheetHeader(
                 title: event == nil ? "Nuevo evento" : "Editar evento",
                 subtitle: event == nil ? "Añade una cita a tu calendario privado." : "Actualiza los detalles de esta cita.",
-                systemImage: event == nil ? "calendar.badge.plus" : "calendar.badge.clock",
-                tint: selectedCalendar?.color.swiftUIColor ?? Color.accentColor
+                systemImage: event == nil ? "calendar.badge.plus" : "calendar.badge.clock"
             )
 
             Divider()
@@ -453,6 +462,7 @@ private struct EventEditorSheet: View {
                     }
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
                 .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start || isSaving)
             }
             .padding(.horizontal, 22)
@@ -467,24 +477,21 @@ private struct EventEditorSheet: View {
         }
     }
 
-    private var selectedCalendar: LocalCalendar? {
-        model.calendars.first { $0.id == calendarID }
-    }
 }
 
 private struct EditorSheetHeader: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     let title: String
     let subtitle: String
     let systemImage: String
-    let tint: Color
 
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: systemImage)
                 .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(tint)
+                .foregroundStyle(appAccentColor)
                 .frame(width: 42, height: 42)
-                .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+                .background(appAccentColor.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -502,6 +509,7 @@ private struct EditorSheetHeader: View {
 }
 
 private struct EditorSection<Content: View>: View {
+    @Environment(\.appAccentColor) private var appAccentColor
     let title: String
     let systemImage: String
     @ViewBuilder let content: Content
@@ -514,9 +522,14 @@ private struct EditorSection<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(4)
         } label: {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-                .foregroundStyle(.primary)
+            Label {
+                Text(title)
+                    .foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(appAccentColor)
+            }
+            .font(.headline)
         }
     }
 }
