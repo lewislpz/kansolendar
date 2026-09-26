@@ -29,16 +29,19 @@ struct CalendarModeBar: View {
                 } label: {
                     Label(option.title, systemImage: option.systemImage)
                         .font(.callout.monospaced().weight(.semibold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(minWidth: 116, minHeight: 44)
                         .foregroundStyle(mode == option ? accent : .secondary)
                         .background(mode == option ? accent.opacity(0.12) : .clear)
                         .overlay {
                             RoundedRectangle(cornerRadius: 4)
                                 .stroke(mode == option ? accent.opacity(0.8) : Color(nsColor: .separatorColor), lineWidth: 1)
                         }
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .contentShape(Rectangle())
                 .accessibilityLabel("\(option.rawValue.capitalized) view")
             }
             Spacer()
